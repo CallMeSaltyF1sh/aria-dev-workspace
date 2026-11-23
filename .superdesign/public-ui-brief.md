@@ -1,0 +1,11 @@
+# Generic Video Annotation Workbench — UI Design System
+
+This brief contains fictional interface content only. Product: a local desktop web tool for reviewing short task videos, marking action phases, viewing sampled frames, running a visual model, and comparing predictions with manual annotations. Audience: small research team. Interface language: English. Use fictional labels such as `Sample video A`; never imply mock results are real.
+
+Visual style: restrained technical minimalism. Paper #F7F7F5, white #FFFFFF, dark forest #1A3C2B, text #252B29, muted #69716D, divider #D9DED9. Phase colors: gray #9CA3A0, yellow #F4D35E, coral #FF8C69, blue #82B7D6, green #6BAD82; uncertain purple #B9A4CA; mismatch red #C7665D. Space Grotesk for headings, system sans for body, JetBrains Mono for timestamps and small metadata. Flat panels, 1px borders, no shadows or gradients, 2-4px radius, 4px spacing grid. Functional application UI, not a landing page.
+
+Desktop 1440x900. Left navigation: Videos, Annotate, Frames, Runs, Compare, Errors. Top status: local workspace, selected sample video, API connection status. Main workspace: video player, transport controls, zoomable timeline with one human phase lane and one model lane, small inspector showing selected time and phase, five ordered frame thumbnails centered on target time, model output/evidence placeholder, run metadata. Include a side panel or tab for run setup: model dropdown, frame offsets, sample interval, estimated request count, cost cap, provider, dry run, start button. Comparison tab: confusion matrix placeholder, per-phase scores placeholder, error list. Show empty states honestly because no model results are present.
+
+Interactions: seek/play/pause, step frame, split or drag phase intervals, keyboard shortcuts, save/lock annotation version, preview exact frames, run one test request, start batch, inspect a mismatch, export CSV/JSON. Manual labels remain hidden from model input. Model output is hidden from annotators until their annotations are locked. Show invalid model output separately from uncertain phase. Include a concise out-of-range annotation warning using fictional times only.
+
+All imagery should be neutral placeholders or stylized abstract video frames, with no real people, rooms, garments, or recordings. No logos are supplied. Use only this document as context.

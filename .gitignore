@@ -1,0 +1,26 @@
+# Local secrets
+.env
+.env.local
+.env.*.local
+
+# Generated pilot data
+outputs/vlm_pilot/
+
+# Temporary Superdesign preview sources
+.superdesign/tmp/
+data/
+workspace/
+work/
+tmp/
+.DS_Store
+**/.DS_Store
+**/node_modules/
+**/.venv/
+**/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
+**/dist/
+*.pyc
+playwright-report/
+test-results/
+
