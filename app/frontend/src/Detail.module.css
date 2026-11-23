@@ -1,0 +1,194 @@
+.tabs {
+  display: flex;
+  gap: 22px;
+  border-bottom: 1px solid var(--line);
+  margin: 18px 0;
+}
+.tabs button {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #777;
+  border-bottom: 2px solid transparent;
+  padding: 10px 0;
+  font-size: 12px;
+}
+.tabs button[aria-selected='true'] {
+  color: #171717;
+  border-bottom-color: #171717;
+  font-weight: 600;
+}
+.video {
+  display: block;
+  background: #18181b;
+  max-height: 55vh;
+  min-height: 200px;
+  object-fit: contain;
+}
+.controls {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 12px;
+}
+.controls input {
+  flex: 1;
+  min-width: 90px;
+}
+.controls button {
+  font-size: 11px;
+}
+.controls select {
+  font-size: 11px;
+  padding: 5px;
+}
+.axisLabels {
+  display: flex;
+  justify-content: space-between;
+  font-family: 'Geist Mono', monospace;
+  color: #888;
+  font-size: 10px;
+}
+.axis {
+  position: relative;
+  height: 40px;
+  cursor: crosshair;
+}
+.axis:before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #aaa;
+  transform: translateY(-50%);
+}
+.boundary {
+  position: absolute;
+  top: 50%;
+  height: 28px;
+  width: 24px;
+  transform: translate(-50%, -50%);
+  padding: 0;
+  min-height: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  touch-action: none;
+  cursor: ew-resize;
+}
+.boundary:before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  transform: rotate(45deg);
+  border: 2px solid #171717;
+  background: white;
+}
+.boundary[aria-pressed='true']:before {
+  background: #171717;
+}
+.boundary:hover,
+.boundary:focus-visible,
+.boundary[aria-pressed='true'] {
+  z-index: 2;
+}
+.bubble {
+  display: none;
+  position: absolute;
+  bottom: 27px;
+  background: #171717;
+  color: white;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px;
+  pointer-events: none;
+}
+.boundary:hover .bubble,
+.boundary:focus-visible .bubble,
+.boundary[aria-pressed='true'] .bubble {
+  display: block;
+}
+.segments {
+  display: flex;
+}
+.segments select {
+  min-width: 0;
+  padding: 4px 0 !important;
+  border: 1px solid #fff !important;
+  border-radius: 0 !important;
+  text-align: center;
+  font-size: 11px;
+  height: 32px;
+  min-height: 32px;
+}
+.legend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px 15px;
+  border-top: 1px solid var(--line);
+  padding: 12px 0 0;
+  margin: 14px 0 0;
+  font-size: 11px;
+}
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.legend i {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  border: 1px solid #0002;
+}
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+.metadata {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: 12px;
+  margin: 0 0 25px;
+}
+.metadata dt {
+  color: #777;
+}
+.metadata dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.frameGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  padding: 15px;
+}
+.frameGrid figure {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.frameGrid .targetFrame {
+  border-color: #171717;
+}
+.frameGrid img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4/3;
+  object-fit: contain;
+  background: #18181b;
+}
+.frameGrid figcaption {
+  display: grid;
+  gap: 3px;
+  padding: 9px;
+  font-size: 10px;
+  font-family: 'Geist Mono', monospace;
+}

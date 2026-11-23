@@ -39,6 +39,7 @@ jobs = Table(
     Column("asset_id", String, nullable=False), Column("kind", String, nullable=False),
     Column("key", String, nullable=False), Column("status", String, nullable=False),
     Column("result", JSON), Column("error", String),
+    Column("created_at", String),
 )
 
 

@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 
 from . import media, services
-from .storage import DATA, LOCK, ROOT, WORK, asset_row, assets, engine, jobs, source_path
+from .storage import DATA, LOCK, ROOT, WORK, asset_row, assets, digest, engine, jobs, source_path
 
 
 @asynccontextmanager
@@ -109,6 +109,7 @@ def directory_rename(body: DirectoryInput):
 @app.post("/api/import")
 def import_media(
     file: UploadFile = File(), directory: str = Form(""), name: str = Form(""),
+    allow_duplicate: bool = Form(False),
 ):
     filename = name or file.filename
     if not filename or Path(filename).name != filename or "\\" in filename:
@@ -128,6 +129,10 @@ def import_media(
                 os.fsync(output.fileno())
             if destination.exists():
                 raise RuntimeError("Destination appeared during import.")
+            file_hash = digest(temporary)
+            if not allow_duplicate and any(row["hash"] == file_hash and not row["missing"]
+                                           for row in services.list_assets()):
+                raise RuntimeError("Identical content already exists. Enable Keep duplicate content to import this copy.")
             temporary.rename(destination)
             services.scan()
         finally:
@@ -266,6 +271,15 @@ def job_status(job_id: str):
         return dict(job)
 
 
+@app.get("/api/assets/{asset_id}/jobs")
+def asset_jobs(asset_id: str):
+    asset_row(asset_id)
+    with engine.connect() as connection:
+        return [dict(row) for row in connection.execute(
+            select(jobs).where(jobs.c.asset_id == asset_id).order_by(jobs.c.created_at.desc())
+        ).mappings()]
+
+
 @app.get("/api/openapi.json")
 def schema():
     return app.openapi()
@@ -273,7 +287,7 @@ def schema():
 
 dist = ROOT / "app" / "frontend" / "dist"
 if dist.exists():
-    app.mount("/static", StaticFiles(directory=dist / "assets"), name="static")
+    app.mount("/static", StaticFiles(directory=dist / "static"), name="static")
 
     @app.get("/{path:path}")
     def frontend(path: str):

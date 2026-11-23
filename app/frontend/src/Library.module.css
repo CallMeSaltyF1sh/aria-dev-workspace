@@ -1,0 +1,70 @@
+.layout {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.folder {
+  display: flex;
+  align-items: center;
+  padding: 3px 8px;
+  gap: 3px;
+}
+.folder > button:first-child {
+  border: 0;
+  flex: 1;
+  justify-content: space-between;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: transparent;
+  text-align: left;
+}
+.folder > button.chosen {
+  background: #eee;
+  font-weight: 600;
+}
+.folder small {
+  color: #888;
+}
+.filters {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  padding: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.filters input {
+  flex: 1;
+  min-width: 120px;
+}
+.filters select {
+  font-size: 11px;
+  max-width: 150px;
+}
+.assetLink {
+  display: block;
+  min-width: 180px;
+  font-weight: 500;
+}
+.assetLink small {
+  display: block;
+  font-size: 10px;
+  font-weight: 400;
+  margin-top: 3px;
+}
+.fileList {
+  max-height: 170px;
+  overflow: auto;
+  padding-left: 20px;
+  font-size: 11px;
+}
+@media (max-width: 1000px) {
+  .layout {
+    grid-template-columns: 150px minmax(0, 1fr);
+  }
+}
+@media (max-width: 720px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}

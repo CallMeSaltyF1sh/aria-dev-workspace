@@ -38,7 +38,10 @@ def scan():
             folders[:] = [name for name in folders if not (os.path.join(directory, name)).endswith(".pending")
                           and not (DATA / os.path.relpath(os.path.join(directory, name), DATA)).is_symlink()]
             for name in filenames:
-                path = source_path(os.path.relpath(os.path.join(directory, name), DATA))
+                candidate = os.path.join(directory, name)
+                if os.path.islink(candidate):
+                    continue
+                path = source_path(os.path.relpath(candidate, DATA))
                 if path.suffix.lower() not in {".mp4", ".vrs"}:
                     continue
                 relative = path.relative_to(DATA).as_posix()
@@ -254,7 +257,7 @@ def submit_job(asset_id, kind, settings=None):
         if active:
             return dict(active)
         job = {"id": str(uuid.uuid4()), "asset_id": asset_id, "kind": kind,
-               "key": key, "status": "queued"}
+               "key": key, "status": "queued", "created_at": now()}
         connection.execute(insert(jobs).values(**job))
     def work():
         try:
