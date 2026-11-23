@@ -4,6 +4,10 @@
   gap: 16px;
   align-items: start;
 }
+.layout .folderHeader {
+  padding-block: 11px;
+  min-height: 49px;
+}
 .folder {
   display: flex;
   align-items: center;
@@ -51,6 +55,16 @@
   font-size: 10px;
   font-weight: 400;
   margin-top: 3px;
+}
+.assetAction {
+  vertical-align: middle;
+}
+.openAsset {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
 }
 .fileList {
   max-height: 170px;

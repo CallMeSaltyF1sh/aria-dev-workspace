@@ -113,7 +113,7 @@ export function LibraryPage({
       )}
       <div className={styles.layout}>
         <aside className="card">
-          <div className="cardHead">
+          <div className={`cardHead ${styles.folderHeader}`}>
             <h2>Folders</h2>
             <button
               className="iconButton"
@@ -128,9 +128,8 @@ export function LibraryPage({
               key={path}
               className={styles.folder}
               style={{
-                paddingLeft: path
-                  ? Math.max(0, path.split('/').length - 1) * 12
-                  : 0,
+                paddingLeft:
+                  8 + (path ? Math.max(0, path.split('/').length - 1) * 12 : 0),
               }}
             >
               <button
@@ -335,8 +334,9 @@ export function LibraryPage({
                           )}
                         </span>
                       </td>
-                      <td>
+                      <td className={styles.assetAction}>
                         <Link
+                          className={styles.openAsset}
                           aria-label={'Open ' + asset.path}
                           to={url}
                           state={navigation}
