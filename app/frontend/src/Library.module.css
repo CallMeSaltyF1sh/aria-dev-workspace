@@ -5,13 +5,14 @@
   align-items: start;
 }
 .layout .folderHeader {
-  padding-block: 11px;
-  min-height: 49px;
+  height: 48px;
+  min-height: 48px;
+  padding-block: 0;
 }
 .folder {
   display: flex;
   align-items: center;
-  padding: 3px 8px;
+  padding: 8px;
   gap: 3px;
 }
 .folder > button:first-child {
