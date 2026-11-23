@@ -296,6 +296,23 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/assets/{asset_id}/jobs': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Asset Jobs */
+    get: operations['asset_jobs_api_assets__asset_id__jobs_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/openapi.json': {
     parameters: {
       query?: never
@@ -313,10 +330,52 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/{path}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Frontend */
+    get: operations['frontend__path__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
 export type webhooks = Record<string, never>
 export interface components {
   schemas: {
+    /** AssetOutput */
+    AssetOutput: {
+      /** Id */
+      id: string
+      /** Path */
+      path: string
+      /** Hash */
+      hash: string
+      /** Fingerprint */
+      fingerprint: string
+      /** Missing */
+      missing: number
+      /** Device */
+      device?: string | null
+      info: components['schemas']['MediaInfo']
+      /** Study */
+      study: {
+        [key: string]: string
+      }
+      /**
+       * Annotation
+       * @default not_started
+       */
+      annotation: string
+    }
     /** Body_import_media_api_import_post */
     Body_import_media_api_import_post: {
       /** File */
@@ -331,6 +390,11 @@ export interface components {
        * @default
        */
       name: string
+      /**
+       * Allow Duplicate
+       * @default false
+       */
+      allow_duplicate: boolean
     }
     /** DeleteInput */
     DeleteInput: {
@@ -343,6 +407,17 @@ export interface components {
       directory?: string | null
       /** Token */
       token?: string | null
+    }
+    /** DeletionOutput */
+    DeletionOutput: {
+      /** Files */
+      files: string[]
+      /** Token */
+      token: string
+      /** Annotations */
+      annotations: number
+      /** Frame Groups */
+      frame_groups: number
     }
     /** DirectoryInput */
     DirectoryInput: {
@@ -358,6 +433,31 @@ export interface components {
       /** Intervals */
       intervals: components['schemas']['Interval'][]
     }
+    /** DraftOutput */
+    DraftOutput: {
+      /** Asset Id */
+      asset_id: string
+      /** Source Hash */
+      source_hash: string
+      /** Duration Ms */
+      duration_ms: number
+      /** Revision */
+      revision: number
+      /** Schema Version */
+      schema_version: number
+      /** Labels Version */
+      labels_version: string
+      /** Time Basis */
+      time_basis: string
+      /** Intervals */
+      intervals: components['schemas']['IntervalOutput'][]
+      /** Source Changed */
+      source_changed: boolean
+      /** Saved At */
+      saved_at?: string | null
+      /** Annotator Id */
+      annotator_id?: string | null
+    }
     /** FrameInput */
     FrameInput: {
       /** Target Ms */
@@ -372,6 +472,53 @@ export interface components {
        */
       width: number
     }
+    /** FrameOutput */
+    FrameOutput: {
+      /** File */
+      file: string
+      /** Requested Ms */
+      requested_ms: number
+      /** Actual Ms */
+      actual_ms: number
+      /** Index */
+      index: number
+      /** Is Target */
+      is_target: boolean
+      /** Width */
+      width?: number | null
+      /** Height */
+      height?: number | null
+      /** Device Time Ns */
+      device_time_ns?: number | null
+    }
+    /** GroupOutput */
+    GroupOutput: {
+      /** Id */
+      id: string
+      /** Asset Id */
+      asset_id: string
+      /** Source Hash */
+      source_hash: string
+      /** Created At */
+      created_at: string
+      /** Settings */
+      settings: {
+        [key: string]: number
+      }
+      /** Time Basis */
+      time_basis: string
+      /** Frames */
+      frames: components['schemas']['FrameOutput'][]
+      /** Schema Version */
+      schema_version: number
+      /**
+       * Source Changed
+       * @default false
+       */
+      source_changed: boolean
+    } & {
+      [key: string]: unknown
+    }
     /** HTTPValidationError */
     HTTPValidationError: {
       /** Detail */
@@ -385,6 +532,81 @@ export interface components {
       end_ms: number
       /** Phase */
       phase: ('P0' | 'P1' | 'P2' | 'P3' | 'P4' | 'unclear') | null
+    }
+    /** IntervalOutput */
+    IntervalOutput: {
+      /** Start Ms */
+      start_ms: number
+      /** End Ms */
+      end_ms: number
+      /** Phase */
+      phase: ('P0' | 'P1' | 'P2' | 'P3' | 'P4' | 'unclear') | null
+    }
+    /** JobOutput */
+    JobOutput: {
+      /** Id */
+      id: string
+      /** Asset Id */
+      asset_id: string
+      /** Kind */
+      kind: string
+      /** Key */
+      key: string
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'queued' | 'running' | 'completed' | 'failed' | 'interrupted'
+      /** Created At */
+      created_at?: string | null
+      /** Result */
+      result?: {
+        [key: string]: unknown
+      } | null
+      /** Error */
+      error?: string | null
+    }
+    /** LibraryOutput */
+    LibraryOutput: {
+      /** Assets */
+      assets: components['schemas']['AssetOutput'][]
+      /** Directories */
+      directories: string[]
+      /** Phases */
+      phases: {
+        [key: string]: components['schemas']['PhaseOutput']
+      }
+    }
+    /** MediaInfo */
+    MediaInfo: {
+      /** Status */
+      status: string
+      /** Duration Ms */
+      duration_ms?: number | null
+      /** Width */
+      width?: number | null
+      /** Height */
+      height?: number | null
+      /** Fps */
+      fps?: number | null
+      /** Codec */
+      codec?: string | null
+      /** Error */
+      error?: string | null
+      /**
+       * Time Basis
+       * @default media_time
+       */
+      time_basis: string
+    } & {
+      [key: string]: unknown
+    }
+    /** PhaseOutput */
+    PhaseOutput: {
+      /** Name */
+      name: string
+      /** Color */
+      color: string
     }
     /** StudyInput */
     StudyInput: {
@@ -480,7 +702,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': unknown
+          'application/json': components['schemas']['LibraryOutput']
         }
       }
     }
@@ -500,7 +722,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': unknown
+          'application/json': components['schemas']['LibraryOutput']
         }
       }
     }
@@ -524,7 +746,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': unknown
+          'application/json': components['schemas']['LibraryOutput']
         }
       }
       /** @description Validation Error */
@@ -557,7 +779,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': unknown
+          'application/json': components['schemas']['LibraryOutput']
         }
       }
       /** @description Validation Error */
@@ -590,7 +812,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': unknown
+          'application/json': components['schemas']['LibraryOutput']
         }
       }
       /** @description Validation Error */
@@ -623,7 +845,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': unknown
+          'application/json': components['schemas']['DeletionOutput']
         }
       }
       /** @description Validation Error */
@@ -656,7 +878,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': unknown
+          'application/json': components['schemas']['LibraryOutput']
         }
       }
       /** @description Validation Error */
@@ -687,7 +909,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': unknown
+          'application/json': components['schemas']['AssetOutput']
         }
       }
       /** @description Validation Error */
@@ -722,7 +944,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': unknown
+          'application/json': components['schemas']['AssetOutput']
         }
       }
       /** @description Validation Error */
@@ -784,7 +1006,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': unknown
+          'application/json': number[]
         }
       }
       /** @description Validation Error */
@@ -815,7 +1037,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': unknown
+          'application/json': components['schemas']['DraftOutput']
         }
       }
       /** @description Validation Error */
@@ -850,7 +1072,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': unknown
+          'application/json': components['schemas']['DraftOutput']
         }
       }
       /** @description Validation Error */
@@ -881,7 +1103,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': unknown
+          'application/json': components['schemas']['GroupOutput'][]
         }
       }
       /** @description Validation Error */
@@ -916,7 +1138,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': unknown
+          'application/json': components['schemas']['JobOutput']
         }
       }
       /** @description Validation Error */
@@ -947,7 +1169,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': unknown
+          'application/json': components['schemas']['JobOutput']
         }
       }
       /** @description Validation Error */
@@ -976,7 +1198,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': unknown
+          'application/json': components['schemas']['GroupOutput'][]
         }
       }
     }
@@ -1031,7 +1253,38 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': unknown
+          'application/json': components['schemas']['JobOutput']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  asset_jobs_api_assets__asset_id__jobs_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        asset_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['JobOutput'][]
         }
       }
       /** @description Validation Error */
@@ -1061,6 +1314,37 @@ export interface operations {
         }
         content: {
           'application/json': unknown
+        }
+      }
+    }
+  }
+  frontend__path__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        path: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
         }
       }
     }

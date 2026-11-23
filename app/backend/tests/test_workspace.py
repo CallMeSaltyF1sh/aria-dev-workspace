@@ -1,4 +1,6 @@
 import time
+import csv
+import json
 
 from devworkspace.storage import DATA, WORK
 
@@ -13,10 +15,13 @@ def test_annotation_revision_and_precise_end(client, video):
     asset = scan(client)
     url = f"/api/assets/{asset['id']}/annotation"
     draft = client.get(url).json()
-    body = {"revision": 0, "intervals": [
-        {"start_ms": 0, "end_ms": 100, "phase": "P1"},
-        {"start_ms": 100, "end_ms": draft["duration_ms"], "phase": None},
-    ]}
+    body = {
+        "revision": 0,
+        "intervals": [
+            {"start_ms": 0, "end_ms": 100, "phase": "P1"},
+            {"start_ms": 100, "end_ms": draft["duration_ms"], "phase": None},
+        ],
+    }
     assert client.put(url, json=body).status_code == 200
     assert client.put(url, json=body).status_code == 409
     saved = client.get(url).json()
@@ -32,6 +37,7 @@ def test_frames_cache_target_and_clip_start(client, video):
     url = f"/api/assets/{asset['id']}/frames"
     assert client.get(url).json() == []
     settings = {"target_ms": 0, "count": 5, "spacing_ms": 200, "width": 160}
+
     def generate():
         job = client.post(url, json=settings).json()
         for _ in range(100):
@@ -39,8 +45,9 @@ def test_frames_cache_target_and_clip_start(client, video):
             if current["status"] not in {"queued", "running"}:
                 assert current["status"] == "completed", current
                 return current["result"]
-            time.sleep(.05)
+            time.sleep(0.05)
         raise AssertionError("Extraction timeout")
+
     first, second = generate(), generate()
     assert first["id"] == second["id"]
     assert len(client.get(url).json()) == 1
@@ -57,7 +64,9 @@ def test_paths_deletion_confirmation_and_symlinks(client, video, tmp_path):
     (DATA / "link.mp4").symlink_to(video)
     assert client.post("/api/scan").status_code == 200
     preview = client.post("/api/deletion-preview", json={"ids": [asset["id"]]}).json()
-    assert client.post("/api/delete", json={"ids": [asset["id"]], "token": "bad"}).status_code == 400
+    assert (
+        client.post("/api/delete", json={"ids": [asset["id"]], "token": "bad"}).status_code == 400
+    )
     assert video.exists()
     response = client.post("/api/delete", json={"ids": [asset["id"]], "token": preview["token"]})
     assert response.status_code == 200
@@ -71,11 +80,17 @@ def test_rename_preserves_id_and_import_conflict(client, video):
     video.rename(DATA / "development" / video.name)
     moved = scan(client)
     assert moved["id"] == asset["id"]
-    assert client.patch("/api/directories", json={"path": "development", "new_name": "training"}).status_code == 200
+    assert (
+        client.patch(
+            "/api/directories", json={"path": "development", "new_name": "training"}
+        ).status_code
+        == 200
+    )
     assert client.get("/api/library").json()["assets"][0]["id"] == asset["id"]
     with (DATA / "training" / video.name).open("rb") as stream:
-        response = client.post("/api/import", files={"file": ("sample.mp4", stream)},
-                               data={"directory": "training"})
+        response = client.post(
+            "/api/import", files={"file": ("sample.mp4", stream)}, data={"directory": "training"}
+        )
     assert response.status_code == 409
 
 
@@ -86,3 +101,85 @@ def test_media_range(client, video):
     assert len(response.content) == 100
     timestamps = client.get(f"/api/assets/{asset['id']}/timestamps").json()
     assert timestamps[:3] == [0, 100, 200]
+
+
+def test_duplicate_content_requires_explicit_confirmation(client, video):
+    scan(client)
+    with video.open("rb") as stream:
+        blocked = client.post("/api/import", files={"file": ("copy.mp4", stream)})
+    assert blocked.status_code == 409
+    assert not (DATA / "copy.mp4").exists()
+    with video.open("rb") as stream:
+        kept = client.post(
+            "/api/import", files={"file": ("copy.mp4", stream)}, data={"allow_duplicate": "true"}
+        )
+    assert kept.status_code == 200
+    assert len(kept.json()["assets"]) == 2
+
+
+def test_source_replacement_and_parse_errors(client, video):
+    asset = scan(client)
+    draft = client.get(f"/api/assets/{asset['id']}/annotation").json()
+    body = {"revision": 0, "intervals": draft["intervals"]}
+    assert client.put(f"/api/assets/{asset['id']}/annotation", json=body).status_code == 200
+    video.write_bytes(b"this is not a video")
+    # Reject stale saves even before the next directory scan.
+    body["revision"] = 1
+    assert client.put(f"/api/assets/{asset['id']}/annotation", json=body).status_code == 400
+    changed = scan(client)
+    assert changed["info"]["status"] == "error"
+    assert changed["annotation"] == "source_changed"
+
+
+def test_csv_migration_preview_is_non_mutating(client, video, tmp_path):
+    from devworkspace.migrate_csv import apply_review, review, review_hash
+
+    asset = scan(client)
+    csv_file = tmp_path / "old.csv"
+    with csv_file.open("w", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(["video_id", "start_s", "end_s", "phase"])
+        writer.writerow([video.name, 0, 2, "P0"])
+    value = review(csv_file)
+    assert value["records"][0]["change_ms"] < 0
+    path = WORK / "annotations" / asset["id"] / "draft.json"
+    assert not path.exists()
+    import pytest
+
+    with pytest.raises(ValueError, match="checksum"):
+        apply_review(value, "wrong")
+    assert not path.exists()
+    apply_review(value, review_hash(value))
+    assert json.loads(path.read_text())["intervals"][0]["end_ms"] == asset["info"]["duration_ms"]
+    assert ",2,P0" in csv_file.read_text()
+
+
+def test_vrs_proxy_adapter_preserves_irregular_timing(client, monkeypatch):
+    """Adapter simulation only; this does not validate an actual Aria VRS."""
+    import numpy as np
+    from devworkspace import media
+    from devworkspace.storage import digest
+
+    class Image:
+        def to_numpy_array(self):
+            return np.zeros((48, 64, 3), dtype=np.uint8)
+
+    base = 3_000_000_000
+    times = [base, base + 83_333_333, base + 190_000_000, base + 250_000_000]
+
+    class Provider:
+        def get_timestamps_ns(self, *_):
+            return times
+
+        def get_image_data_by_index(self, *_):
+            return Image(), None
+
+    monkeypatch.setattr(media, "vrs_provider", lambda _: (Provider(), "rgb"))
+    source = DATA / "simulation.vrs"
+    source.write_bytes(b"simulated provider input")
+    output = media.make_proxy(source, {"id": "adapter-test", "hash": digest(source)})
+    mapping = json.loads((output.parent / "time_mapping.json").read_text())
+    assert len(mapping["frames"]) == len(times)
+    for record, stamp in zip(mapping["frames"], times):
+        assert record["device_ns"] == stamp
+        assert abs(record["media_ms"] - (stamp - base) / 1e6) <= 1

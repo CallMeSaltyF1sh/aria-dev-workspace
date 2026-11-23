@@ -10,6 +10,7 @@ import {
 } from '@tabler/icons-react'
 import { api, time, type Deletion, type Library } from './api'
 import { Modal } from './components'
+import { filterAssets } from './libraryFilters'
 import styles from './Library.module.css'
 
 export function LibraryPage({
@@ -52,24 +53,7 @@ export function LibraryPage({
     }
   }, [scan])
   const directory = params.get('folder') || ''
-  const visible = library.assets
-    .filter(
-      (asset) =>
-        (!directory || asset.path.startsWith(directory + '/')) &&
-        asset.path
-          .toLowerCase()
-          .includes((params.get('q') || '').toLowerCase()) &&
-        (!params.get('format') ||
-          asset.path.toLowerCase().endsWith(params.get('format')!)) &&
-        (!params.get('media') || asset.info.status === params.get('media')) &&
-        (!params.get('annotation') ||
-          asset.annotation === params.get('annotation')),
-    )
-    .sort((a, b) =>
-      params.get('sort') === 'duration'
-        ? (b.info.duration_ms || 0) - (a.info.duration_ms || 0)
-        : a.path.localeCompare(b.path),
-    )
+  const visible = filterAssets(library.assets, params)
   const run = async (action: () => Promise<void>) => {
     setBusy(true)
     setError('')
@@ -110,6 +94,10 @@ export function LibraryPage({
             className="primary"
             onClick={() => {
               setDestination(directory)
+              setFiles([])
+              setName('')
+              setKeepDuplicate(false)
+              setSkipExisting(false)
               setDialog({ kind: 'import' })
             }}
           >
@@ -326,7 +314,10 @@ export function LibraryPage({
                           : '—'}
                       </td>
                       <td>
-                        <span className="badge" title={asset.info.error}>
+                        <span
+                          className="badge"
+                          title={asset.info.error || undefined}
+                        >
                           {asset.info.status.replaceAll('_', ' ')}
                         </span>
                         {library.assets.some(
@@ -338,7 +329,10 @@ export function LibraryPage({
                       </td>
                       <td>
                         <span className="badge">
-                          {asset.annotation.replaceAll('_', ' ')}
+                          {(asset.annotation || 'not_started').replaceAll(
+                            '_',
+                            ' ',
+                          )}
                         </span>
                       </td>
                       <td>
@@ -477,6 +471,21 @@ export function LibraryPage({
                       ? { path: [directory, name].filter(Boolean).join('/') }
                       : { path: dialog.path, new_name: name },
                   )
+                  if (
+                    dialog.kind === 'rename' &&
+                    dialog.path &&
+                    (directory === dialog.path ||
+                      directory.startsWith(dialog.path + '/'))
+                  ) {
+                    const renamed = [
+                      ...dialog.path.split('/').slice(0, -1),
+                      name,
+                    ].join('/')
+                    update(
+                      'folder',
+                      renamed + directory.slice(dialog.path.length),
+                    )
+                  }
                   setDialog(null)
                   await refresh()
                 })
@@ -504,7 +513,15 @@ export function LibraryPage({
       )}
       {deletion && (
         <Modal
-          title={'Delete ' + deletion.files.length + ' local files?'}
+          title={
+            deletion.directory
+              ? 'Delete folder “' + deletion.directory + '”?'
+              : 'Delete ' +
+                deletion.files.length +
+                ' local file' +
+                (deletion.files.length === 1 ? '' : 's') +
+                '?'
+          }
           onClose={() => {
             if (!busy) setDeletion(null)
           }}
@@ -538,6 +555,15 @@ export function LibraryPage({
                   ['library'],
                   await api('/delete', 'POST', deletion),
                 )
+                if (
+                  deletion.directory &&
+                  (directory === deletion.directory ||
+                    directory.startsWith(deletion.directory + '/'))
+                )
+                  update(
+                    'folder',
+                    deletion.directory.split('/').slice(0, -1).join('/'),
+                  )
                 setDeletion(null)
                 setSelected([])
               })

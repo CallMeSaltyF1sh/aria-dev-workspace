@@ -23,6 +23,7 @@ import {
 } from './api'
 import { Annotation } from './Annotation'
 import { Frames } from './Frames'
+import { filterAssets } from './libraryFilters'
 import { Modal } from './components'
 import styles from './Detail.module.css'
 
@@ -39,9 +40,12 @@ export function DetailPage({
   const [params, setParams] = useSearchParams()
   const tab = params.get('tab') || 'video'
   const state = location.state as { order?: string[]; returnTo?: string } | null
-  const order = state?.order || library.assets.map((a) => a.id)
+  const order =
+    state?.order || filterAssets(library.assets, params).map((a) => a.id)
   const index = order.indexOf(assetId)
-  const returnTo = state?.returnTo || '/data'
+  const listParams = new URLSearchParams(params)
+  listParams.delete('tab')
+  const returnTo = state?.returnTo || '/data?' + listParams.toString()
   const [dirty, setDirty] = useState(false)
   const [current, setCurrent] = useState(0)
   const [playing, setPlaying] = useState(false)
@@ -50,6 +54,10 @@ export function DetailPage({
   const [error, setError] = useState('')
   const video = useRef<HTMLVideoElement>(null)
   const save = useRef<() => Promise<boolean>>(async () => true)
+  const addSplit = useRef<() => void>(() => {})
+  const registerAdd = useCallback((callback: () => void) => {
+    addSplit.current = callback
+  }, [])
   const registerSave = useCallback((callback: () => Promise<boolean>) => {
     save.current = callback
   }, [])
@@ -174,10 +182,13 @@ export function DetailPage({
             aria-selected={tab === key}
             key={key}
             onClick={() =>
-              setParams((p) => {
-                p.set('tab', key)
-                return p
-              })
+              setParams(
+                (p) => {
+                  p.set('tab', key)
+                  return p
+                },
+                { state: location.state },
+              )
             }
           >
             {label}
@@ -277,9 +288,8 @@ export function DetailPage({
             </select>
             <button
               className="primary"
-              onClick={() =>
-                document.getElementById('add-split-at-current')?.click()
-              }
+              onClick={() => addSplit.current()}
+              disabled={draft.source_changed || !draft.duration_ms}
             >
               <IconPlus size={15} />
               Add split point
@@ -293,6 +303,7 @@ export function DetailPage({
             currentMs={current}
             onDirty={setDirty}
             registerSave={registerSave}
+            registerAdd={registerAdd}
           />
         )}
       </div>
@@ -347,7 +358,7 @@ export function DetailPage({
 }
 
 function Metadata({ asset, onSaved }: { asset: Asset; onSaved: () => void }) {
-  const [study, setStudy] = useState<Partial<Study>>(asset.study)
+  const [study, setStudy] = useState<Record<string, string>>(asset.study)
   const [status, setStatus] = useState('')
   const [busy, setBusy] = useState(false)
   const fields: [keyof Study, string, string[]?][] = [

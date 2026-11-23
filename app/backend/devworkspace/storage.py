@@ -24,7 +24,8 @@ def sqlite_options(connection, _):
 
 metadata = MetaData()
 assets = Table(
-    "assets", metadata,
+    "assets",
+    metadata,
     Column("id", String, primary_key=True),
     Column("path", String, unique=True, nullable=False),
     Column("fingerprint", String),
@@ -35,10 +36,15 @@ assets = Table(
     Column("missing", Integer, default=0),
 )
 jobs = Table(
-    "jobs", metadata, Column("id", String, primary_key=True),
-    Column("asset_id", String, nullable=False), Column("kind", String, nullable=False),
-    Column("key", String, nullable=False), Column("status", String, nullable=False),
-    Column("result", JSON), Column("error", String),
+    "jobs",
+    metadata,
+    Column("id", String, primary_key=True),
+    Column("asset_id", String, nullable=False),
+    Column("kind", String, nullable=False),
+    Column("key", String, nullable=False),
+    Column("status", String, nullable=False),
+    Column("result", JSON),
+    Column("error", String),
     Column("created_at", String),
 )
 

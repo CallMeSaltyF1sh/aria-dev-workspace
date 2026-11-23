@@ -56,12 +56,14 @@ export function Annotation({
   currentMs,
   onDirty,
   registerSave,
+  registerAdd,
 }: {
   draft: Draft
   phases: Library['phases']
   currentMs: number
   onDirty: (dirty: boolean) => void
   registerSave: (save: () => Promise<boolean>) => void
+  registerAdd: (add: () => void) => void
 }) {
   const [intervals, dispatch] = useReducer(edit, draft.intervals)
   const client = useQueryClient()
@@ -107,6 +109,10 @@ export function Annotation({
   }
   useEffect(() => {
     registerSave(save)
+    registerAdd(() => {
+      if (!draft.source_changed) dispatch({ type: 'split', at: currentMs })
+      setSelected(null)
+    })
   }) // Parent navigation always uses the current editor snapshot.
   const coordinate = (x: number) => {
     const rect = axis.current!.getBoundingClientRect()
@@ -306,16 +312,6 @@ export function Annotation({
             {intervals.length} segments ·{' '}
             {intervals.filter((i) => i.phase === null).length} unlabeled
           </span>
-          <button
-            id="add-split-at-current"
-            onClick={() => {
-              dispatch({ type: 'split', at: currentMs })
-              setSelected(null)
-            }}
-            disabled={draft.source_changed}
-          >
-            Add at {time(currentMs)}
-          </button>
         </div>
         <ul className={styles.legend}>
           {Object.entries(phases).map(([id, phase]) => (
