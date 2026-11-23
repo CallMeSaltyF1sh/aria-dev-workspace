@@ -1,0 +1,15 @@
+[project]
+name = "dev-workspace"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = ["fastapi", "uvicorn[standard]", "sqlalchemy", "alembic", "python-multipart", "projectaria-tools==2.3.0"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
