@@ -53,17 +53,15 @@ function edit(intervals: Interval[], action: Action): Interval[] {
 export function Annotation({
   draft,
   phases,
-  currentMs,
   onDirty,
   registerSave,
   registerAdd,
 }: {
   draft: Draft
   phases: Library['phases']
-  currentMs: number
   onDirty: (dirty: boolean) => void
   registerSave: (save: () => Promise<boolean>) => void
-  registerAdd: (add: () => void) => void
+  registerAdd: (add: (atMs: number) => void) => void
 }) {
   const [intervals, dispatch] = useReducer(edit, draft.intervals)
   const client = useQueryClient()
@@ -109,9 +107,22 @@ export function Annotation({
   }
   useEffect(() => {
     registerSave(save)
-    registerAdd(() => {
-      if (!draft.source_changed) dispatch({ type: 'split', at: currentMs })
-      setSelected(null)
+    registerAdd((atMs) => {
+      if (draft.source_changed) return
+      const at = Math.round(atMs / 100) * 100
+      const existing = intervals
+        .slice(0, -1)
+        .findIndex((item) => item.end_ms === at)
+      if (existing >= 0) {
+        setSelected(existing)
+        return
+      }
+      const index = intervals.findIndex(
+        (item) => item.start_ms < at && at < item.end_ms,
+      )
+      if (index < 0) return
+      dispatch({ type: 'split', at })
+      setSelected(index)
     })
   }) // Parent navigation always uses the current editor snapshot.
   const coordinate = (x: number) => {

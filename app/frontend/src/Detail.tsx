@@ -54,8 +54,8 @@ export function DetailPage({
   const [error, setError] = useState('')
   const video = useRef<HTMLVideoElement>(null)
   const save = useRef<() => Promise<boolean>>(async () => true)
-  const addSplit = useRef<() => void>(() => {})
-  const registerAdd = useCallback((callback: () => void) => {
+  const addSplit = useRef<(atMs: number) => void>(() => {})
+  const registerAdd = useCallback((callback: (atMs: number) => void) => {
     addSplit.current = callback
   }, [])
   const registerSave = useCallback((callback: () => Promise<boolean>) => {
@@ -210,6 +210,12 @@ export function DetailPage({
             onTimeUpdate={() =>
               setCurrent((video.current?.currentTime || 0) * 1000)
             }
+            onSeeking={() =>
+              setCurrent((video.current?.currentTime || 0) * 1000)
+            }
+            onSeeked={() =>
+              setCurrent((video.current?.currentTime || 0) * 1000)
+            }
             onPlay={() => setPlaying(true)}
             onPause={() => setPlaying(false)}
             preload="metadata"
@@ -288,8 +294,20 @@ export function DetailPage({
             </select>
             <button
               className="primary"
-              onClick={() => addSplit.current()}
-              disabled={draft.source_changed || !draft.duration_ms}
+              onClick={() =>
+                addSplit.current((video.current?.currentTime || 0) * 1000)
+              }
+              disabled={
+                draft.source_changed ||
+                Math.round(current / 100) * 100 <= 0 ||
+                Math.round(current / 100) * 100 >= draft.duration_ms
+              }
+              title={
+                Math.round(current / 100) * 100 <= 0 ||
+                Math.round(current / 100) * 100 >= draft.duration_ms
+                  ? 'Seek inside the recording to add a split point.'
+                  : undefined
+              }
             >
               <IconPlus size={15} />
               Add split point
@@ -300,7 +318,6 @@ export function DetailPage({
           <Annotation
             draft={draft}
             phases={library.phases}
-            currentMs={current}
             onDirty={setDirty}
             registerSave={registerSave}
             registerAdd={registerAdd}

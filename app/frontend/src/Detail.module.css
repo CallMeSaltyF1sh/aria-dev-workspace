@@ -39,6 +39,11 @@
 .controls button {
   font-size: 11px;
 }
+.controls button,
+.controls select {
+  height: 32px;
+  min-height: 32px;
+}
 .controls select {
   font-size: 11px;
   padding: 5px;
