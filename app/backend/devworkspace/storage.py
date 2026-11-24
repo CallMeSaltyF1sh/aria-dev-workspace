@@ -46,6 +46,7 @@ jobs = Table(
     Column("result", JSON),
     Column("error", String),
     Column("created_at", String),
+    Column("progress", JSON),
 )
 
 

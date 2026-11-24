@@ -32,11 +32,11 @@ def test_annotation_revision_and_precise_end(client, video):
     assert client.put(url, json=body).status_code == 400
 
 
-def test_frames_cache_target_and_clip_start(client, video):
+def test_full_video_frames_pagination_and_cache(client, video):
     asset = scan(client)
     url = f"/api/assets/{asset['id']}/frames"
     assert client.get(url).json() == []
-    settings = {"target_ms": 0, "count": 5, "spacing_ms": 200, "width": 160}
+    settings = {"interval_ms": 100, "width": 160}
 
     def generate():
         job = client.post(url, json=settings).json()
@@ -50,12 +50,49 @@ def test_frames_cache_target_and_clip_start(client, video):
 
     first, second = generate(), generate()
     assert first["id"] == second["id"]
+    assert first["mode"] == "full_video"
+    assert first["sample_count"] == 14
+    assert first["frame_count"] == 14
+    assert "frames" not in first  # Lists and job responses stay compact.
     assert len(client.get(url).json()) == 1
-    assert len(first["frames"]) == 3
-    assert sum(frame["is_target"] for frame in first["frames"]) == 1
-    for frame in first["frames"]:
+    page = client.get(f"{url}/{first['id']}?page_size=5").json()
+    assert len(page["frames"]) == 5
+    assert page["page_count"] == 3
+    assert page["total"] == 14
+    assert [frame["requested_ms"] for frame in page["frames"]] == [0, 100, 200, 300, 400]
+    last = client.get(f"{url}/{first['id']}?page=3&page_size=5").json()
+    assert len(last["frames"]) == 4
+    assert last["frames"][-1]["requested_ms"] == 1300
+    assert client.get(f"{url}/{first['id']}?page=4&page_size=5").status_code == 400
+    for frame in page["frames"]:
         response = client.get(f"{url}/{first['id']}/{frame['file']}")
         assert response.headers["content-type"].startswith("image/")
+        assert frame["width"] == 160
+        assert frame["actual_ms"] == frame["requested_ms"]
+    manifest_path = WORK / "frames" / asset["id"] / first["id"] / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    stamp = manifest_path.stat().st_mtime_ns
+    assert manifest["schema_version"] == 2
+    assert manifest["frames"][0]["requested_times_ms"] == [0]
+    generate()
+    assert manifest_path.stat().st_mtime_ns == stamp
+    # A missing JPEG makes the cache incomplete and must trigger reconstruction.
+    (manifest_path.parent / manifest["frames"][0]["file"]).unlink()
+    generate()
+    assert (manifest_path.parent / manifest["frames"][0]["file"]).exists()
+    assert client.post(url, json={"target_ms": 0, "count": 5, "spacing_ms": 100}).status_code == 422
+
+
+def test_full_video_plan_deduplicates_and_maps_every_sample():
+    from devworkspace.frame_sets import plan
+
+    frames = plan([0, 300, 800], 850)
+    assert [frame["index"] for frame in frames] == [0, 1, 2]
+    assert sorted(t for frame in frames for t in frame["requested_times_ms"]) == list(
+        range(0, 850, 100)
+    )
+    assert frames[0]["requested_times_ms"] == [0, 100]
+    assert frames[-1]["actual_ms"] == 800
 
 
 def test_paths_deletion_confirmation_and_symlinks(client, video, tmp_path):
@@ -183,3 +220,18 @@ def test_vrs_proxy_adapter_preserves_irregular_timing(client, monkeypatch):
     for record, stamp in zip(mapping["frames"], times):
         assert record["device_ns"] == stamp
         assert abs(record["media_ms"] - (stamp - base) / 1e6) <= 1
+    from devworkspace import frame_sets
+
+    full = frame_sets.generate(
+        {
+            "id": "adapter-test",
+            "path": source.name,
+            "hash": digest(source),
+            "info": {"duration_ms": 250, "time_basis": "DEVICE_TIME", "rgb_stream": "rgb"},
+        },
+        {"interval_ms": 100, "width": 160},
+    )
+    assert full["sample_count"] == 3
+    assert [frame["requested_ms"] for frame in full["frames"]] == [0, 100, 200]
+    assert [frame["device_time_ns"] for frame in full["frames"]] == times[:3]
+    assert [frame["actual_ms"] for frame in full["frames"]] == [0, 83.333333, 190]

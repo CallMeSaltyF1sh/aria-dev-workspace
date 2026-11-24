@@ -7,18 +7,19 @@ from typing import Literal
 
 from alembic import command
 from alembic.config import Config
-from fastapi import FastAPI, File, Form, Request, UploadFile
+from fastapi import FastAPI, File, Form, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, update
 
-from . import media, services
+from . import media, services, frame_sets
 from .responses import (
     AssetOutput,
     DeletionOutput,
     DraftOutput,
-    GroupOutput,
+    FrameSetOutput,
+    FramePageOutput,
     JobOutput,
     LibraryOutput,
 )
@@ -262,9 +263,8 @@ def save_annotation(asset_id: str, body: DraftInput):
 
 
 class FrameInput(BaseModel):
-    target_ms: int = Field(ge=0)
-    count: int = Field(ge=1, le=31)
-    spacing_ms: int = Field(ge=1, le=60000)
+    model_config = ConfigDict(extra="forbid")
+    interval_ms: Literal[100] = 100
     width: int = Field(default=1280, ge=64, le=3840)
 
 
@@ -278,24 +278,36 @@ def prepare_preview(asset_id: str):
     return services.submit_job(asset_id, "preview")
 
 
-@app.get("/api/assets/{asset_id}/frames", response_model=list[GroupOutput])
+@app.get("/api/assets/{asset_id}/frames", response_model=list[FrameSetOutput])
 def frames(asset_id: str):
-    return services.frame_groups(asset_id)
+    asset = asset_row(asset_id)
+    return [frame_sets.summary(group, asset["hash"]) for group in services.frame_groups(asset_id)]
 
 
-@app.get("/api/frame-groups", response_model=list[GroupOutput])
+@app.get("/api/frame-groups", response_model=list[FrameSetOutput])
 def all_frame_groups():
     return [
-        group for asset in services.list_assets() for group in services.frame_groups(asset["id"])
+        frame_sets.summary(group, asset["hash"])
+        for asset in services.list_assets()
+        for group in services.frame_groups(asset["id"])
+        if group.get("mode") == "full_video"
     ]
+
+
+@app.get("/api/assets/{asset_id}/frames/{group_id}", response_model=FramePageOutput)
+def frame_page(
+    asset_id: str,
+    group_id: str,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(24, ge=1, le=100),
+):
+    return frame_sets.page(asset_id, group_id, page, page_size)
 
 
 @app.get("/api/assets/{asset_id}/frames/{group_id}/{filename}")
 def frame_file(asset_id: str, group_id: str, filename: str):
-    group = next(
-        (group for group in services.frame_groups(asset_id) if group["id"] == group_id), None
-    )
-    if group is None or filename not in {frame["file"] for frame in group["frames"]}:
+    _, filenames = frame_sets.manifest(asset_id, group_id)
+    if filename not in filenames:
         raise FileNotFoundError("Frame not found.")
     return FileResponse(WORK / "frames" / asset_id / group_id / filename)
 

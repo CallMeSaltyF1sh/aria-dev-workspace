@@ -65,7 +65,8 @@ class FrameOutput(BaseModel):
     requested_ms: int
     actual_ms: float
     index: int
-    is_target: bool
+    is_target: bool = False
+    requested_times_ms: list[int] = []
     width: int | None = None
     height: int | None = None
     device_time_ns: int | None = None
@@ -93,6 +94,29 @@ class JobOutput(BaseModel):
     created_at: str | None = None
     result: dict[str, Any] | None = None
     error: str | None = None
+    progress: dict[str, Any] | None = None
+
+
+class FrameSetOutput(BaseModel):
+    id: str
+    asset_id: str
+    source_hash: str
+    created_at: str
+    mode: str
+    settings: dict[str, Any]
+    time_basis: str
+    schema_version: int
+    frame_count: int
+    sample_count: int
+    source_changed: bool
+
+
+class FramePageOutput(BaseModel):
+    frames: list[FrameOutput]
+    total: int
+    page: int
+    page_size: int
+    page_count: int
 
 
 class DeletionOutput(BaseModel):

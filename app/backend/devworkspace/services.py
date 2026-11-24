@@ -3,12 +3,13 @@ import json
 import os
 import shutil
 import uuid
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 
 from sqlalchemy import insert, select, update
 
-from . import media
+from . import media, frame_sets
 from .storage import (
     DATA,
     LOCK,
@@ -262,8 +263,12 @@ def frame_groups(asset_id):
     result = []
     current = asset_row(asset_id)
     for path in directory.glob("*/manifest.json"):
+        if path.parent.name.endswith(".pending"):
+            continue
         try:
-            value = read_json(path)
+            stat = path.stat()
+            cached, _ = frame_sets.cached_manifest(path, stat.st_mtime_ns, stat.st_size)
+            value = dict(cached)
             value["source_changed"] = value["source_hash"] != current["hash"]
             result.append(value)
         except (ValueError, OSError):
@@ -271,78 +276,8 @@ def frame_groups(asset_id):
     return sorted(result, key=lambda value: value["created_at"], reverse=True)
 
 
-def create_frames(asset, settings):
-    path = source_path(asset["path"], exists=True)
-    signature = {
-        **settings,
-        "source_hash": asset["hash"],
-        "extractor": 2,
-        "stream": asset["info"].get("rgb_stream", "v:0"),
-        "time_basis": asset["info"].get("time_basis", "media_time"),
-    }
-    group_id = hashlib.sha256(json.dumps(signature, sort_keys=True).encode()).hexdigest()[:24]
-    destination = WORK / "frames" / asset["id"] / group_id
-    if (destination / "manifest.json").exists():
-        cached = read_json(destination / "manifest.json")
-        if all((destination / frame["file"]).is_file() for frame in cached["frames"]):
-            return cached
-        shutil.rmtree(destination)
-    temporary = destination.with_name(group_id + ".pending")
-    target, spacing, count = settings["target_ms"], settings["spacing_ms"], settings["count"]
-    if target >= asset["info"]["duration_ms"]:
-        raise ValueError("Target must be inside the recording.")
-    shutil.rmtree(temporary, ignore_errors=True)
-    temporary.mkdir(parents=True)
-    requested = sorted({target + (index - count // 2) * spacing for index in range(count)})
-    frames = []
-    try:
-        for request in requested:
-            if not 0 <= request < asset["info"]["duration_ms"]:
-                continue
-            output = temporary / f"frame_{len(frames):04d}.jpg"
-            actual = media.export_frame(
-                path,
-                {**asset["info"], "fingerprint": asset["fingerprint"]},
-                request,
-                output,
-                settings["width"],
-            )
-            existing = next((frame for frame in frames if frame["index"] == actual["index"]), None)
-            if existing:
-                output.unlink()
-                if request == target:
-                    existing.update(is_target=True, requested_ms=request)
-                continue
-            frames.append(
-                {
-                    **actual,
-                    "requested_ms": request,
-                    "is_target": request == target,
-                    "file": output.name,
-                }
-            )
-        if not any(frame["is_target"] for frame in frames):
-            raise ValueError("No target frame could be decoded.")
-        if digest(path) != asset["hash"]:
-            raise ValueError("Source changed during extraction.")
-        manifest = {
-            "id": group_id,
-            "asset_id": asset["id"],
-            "source_hash": asset["hash"],
-            "created_at": now(),
-            "settings": settings,
-            "time_basis": signature["time_basis"],
-            "frames": frames,
-            "schema_version": 1,
-            "extractor_version": signature["extractor"],
-            "stream": signature["stream"],
-        }
-        atomic_json(temporary / "manifest.json", manifest)
-        temporary.replace(destination)
-        return manifest
-    finally:
-        if temporary.exists():
-            shutil.rmtree(temporary)
+def create_frames(asset, settings, progress=lambda *_: None):
+    return frame_sets.generate(asset, settings, progress)
 
 
 def submit_job(asset_id, kind, settings=None):
@@ -382,7 +317,28 @@ def submit_job(asset_id, kind, settings=None):
                     update(jobs).where(jobs.c.id == job["id"]).values(status="running")
                 )
             if kind == "frames":
-                result = create_frames(asset, settings)
+                last_update = 0.0
+                last_stage = None
+
+                def progress(completed, total, stage):
+                    nonlocal last_update, last_stage
+                    clock = time.monotonic()
+                    if stage != last_stage or clock - last_update >= 0.25 or completed == total:
+                        with engine.begin() as connection:
+                            connection.execute(
+                                update(jobs)
+                                .where(jobs.c.id == job["id"])
+                                .values(
+                                    progress={
+                                        "completed": completed,
+                                        "total": total,
+                                        "stage": stage,
+                                    }
+                                )
+                            )
+                        last_update, last_stage = clock, stage
+
+                result = frame_sets.summary(create_frames(asset, settings, progress), asset["hash"])
             else:
                 output = media.make_proxy(source_path(asset["path"], exists=True), asset)
                 result = {"path": output.relative_to(WORK).as_posix()}
