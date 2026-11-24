@@ -2,7 +2,7 @@
 
 A local workspace for reviewing Project Aria recordings, annotating dressing phases and preparing timestamped frames for VLM experiments.
 
-**Available now:** Data Library, MP4 playback, timeline annotation, full-video frame extraction, and CSV/JSON annotation export. Prompt Library, VLM Tasks and Evaluation are placeholders for later development. The current workflow does not call a model or require a Gateway API key or GPU.
+**Available now:** Data Library, MP4 playback, timeline annotation, full-video frame extraction, CSV/JSON annotation export, and a single-recording **VLM Run** (sliding-window phase labels through the AIHubMix API). Prompt Library, multi-recording VLM Tasks and Evaluation are placeholders for later development. No GPU is required; only VLM Run needs an API key.
 
 Each teammate runs their own local instance. Research recordings, frames, annotations, databases and credentials are not included in the repository.
 
@@ -43,6 +43,16 @@ Open **<http://127.0.0.1:5173>**. Stop both services with **Ctrl+C** in the term
 If Node 24 is installed without fnm, use `npm ci --prefix app/frontend` instead. The launcher uses fnm when it is available, otherwise it uses npm from PATH. If fnm is installed, install Node 24 through it before starting the launcher.
 
 An empty Data Library on first launch is expected: add recordings as described below. `data/` and `workspace/` are created automatically by the backend.
+
+### Optional: VLM API key
+
+VLM Run reads `AIHUBMIX_API_KEY` and `VLM_MODELS` (the models offered in its dropdown; the first is the default) from `.env.local` in the repository root (ignored by Git) when the backend starts:
+
+```sh
+cp .env.example .env.local   # then fill in AIHUBMIX_API_KEY
+```
+
+Restart the launcher after changing it. In a recording's **VLM Run** tab, choose the garment, step and context, then click **Run VLM**. Each target point is labelled by one request carrying the target frame plus context frames from the 0.1 s frame cache (generated automatically if missing). Results are saved to `workspace/vlm/<asset_id>/<run_id>.json` and shown next to the saved human annotation. Running sends frames to the API and is billed to the key's account.
 
 ## 2. Project directories
 
@@ -114,6 +124,9 @@ workspace/
 │           ├── frame_000000.jpg
 │           ├── frame_000001.jpg
 │           └── manifest.json                Source identity and timestamp mappings
+├── vlm/
+│   └── <asset_id>/
+│       └── <run_id>.json                    VLM Run settings, per-target responses, merged phases
 └── previews/
     └── <asset_id>/
         └── <source_hash>/

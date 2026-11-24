@@ -330,6 +330,75 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/vlm/config': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Vlm Config */
+    get: operations['vlm_config_api_vlm_config_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/vlm/prompt': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Vlm Prompt */
+    get: operations['vlm_prompt_api_vlm_prompt_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/assets/{asset_id}/vlm': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Vlm Runs */
+    get: operations['vlm_runs_api_assets__asset_id__vlm_get']
+    put?: never
+    /** Start Vlm */
+    post: operations['start_vlm_api_assets__asset_id__vlm_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/assets/{asset_id}/vlm/{run_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Vlm Run */
+    get: operations['vlm_run_api_assets__asset_id__vlm__run_id__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/jobs/{job_id}': {
     parameters: {
       query?: never
@@ -373,23 +442,6 @@ export interface paths {
     }
     /** Schema */
     get: operations['schema_api_openapi_json_get']
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  '/{path}': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /** Frontend */
-    get: operations['frontend__path__get']
     put?: never
     post?: never
     delete?: never
@@ -745,6 +797,153 @@ export interface components {
       input?: unknown
       /** Context */
       ctx?: Record<string, never>
+    }
+    /** VlmConfigOutput */
+    VlmConfigOutput: {
+      /** Configured */
+      configured: boolean
+      /** Api Url */
+      api_url: string
+      /** Models */
+      models: string[]
+    }
+    /** VlmInput */
+    VlmInput: {
+      /**
+       * Model
+       * @default qwen3-vl-plus
+       */
+      model: string
+      /**
+       * Garment
+       * @default
+       * @enum {string}
+       */
+      garment: '' | 'shirt' | 'jacket'
+      /**
+       * Step Ms
+       * @default 500
+       * @enum {integer}
+       */
+      step_ms: 500 | 1000 | 2000
+      /**
+       * Context Ms
+       * @default 2000
+       * @enum {integer}
+       */
+      context_ms: 0 | 1000 | 2000 | 4000
+      /**
+       * Width
+       * @default 640
+       */
+      width: number
+      /**
+       * Workers
+       * @default 8
+       */
+      workers: number
+    }
+    /** VlmPhaseOutput */
+    VlmPhaseOutput: {
+      /** Label */
+      label: string
+      /** Start Ms */
+      start_ms: number
+      /** End Ms */
+      end_ms: number
+    }
+    /** VlmPromptOutput */
+    VlmPromptOutput: {
+      /** Mode */
+      mode: string
+      /** Source */
+      source: string
+      /** Template */
+      template: string
+      /** Phases */
+      phases: string
+      /** Labels */
+      labels: string[]
+      /** Hash */
+      hash: string
+      /** File */
+      file: string
+    }
+    /** VlmRunOutput */
+    VlmRunOutput: {
+      /** Id */
+      id: string
+      /** Created At */
+      created_at: string
+      /** Settings */
+      settings: {
+        [key: string]: unknown
+      }
+      /** Seconds */
+      seconds: number
+      /** Counts */
+      counts: {
+        [key: string]: number
+      }
+      /** Asset Id */
+      asset_id: string
+      /** Source Hash */
+      source_hash: string
+      /** Frame Set Id */
+      frame_set_id: string
+      /** Mode */
+      mode: string
+      /** Api Url */
+      api_url: string
+      /** Prompt Hash */
+      prompt_hash: string
+      /** Windows */
+      windows: components['schemas']['VlmWindowOutput'][]
+      /** Phases */
+      phases: components['schemas']['VlmPhaseOutput'][]
+    }
+    /** VlmRunSummary */
+    VlmRunSummary: {
+      /** Id */
+      id: string
+      /** Created At */
+      created_at: string
+      /** Settings */
+      settings: {
+        [key: string]: unknown
+      }
+      /** Seconds */
+      seconds: number
+      /** Counts */
+      counts: {
+        [key: string]: number
+      }
+    }
+    /** VlmWindowOutput */
+    VlmWindowOutput: {
+      /** Start Ms */
+      start_ms: number
+      /** End Ms */
+      end_ms: number
+      /** Target Ms */
+      target_ms: number
+      /** Actual Target Ms */
+      actual_target_ms: number
+      /** Context Ms */
+      context_ms: number[]
+      /** Label */
+      label: string
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'valid' | 'invalid_output' | 'request_failed'
+      /** Reason */
+      reason?: string | null
+      /** Error */
+      error?: string | null
+      /** Raw */
+      raw?: string | null
     }
   }
   responses: never
@@ -1422,6 +1621,144 @@ export interface operations {
       }
     }
   }
+  vlm_config_api_vlm_config_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['VlmConfigOutput']
+        }
+      }
+    }
+  }
+  vlm_prompt_api_vlm_prompt_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['VlmPromptOutput']
+        }
+      }
+    }
+  }
+  vlm_runs_api_assets__asset_id__vlm_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        asset_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['VlmRunSummary'][]
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  start_vlm_api_assets__asset_id__vlm_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        asset_id: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['VlmInput']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['JobOutput']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  vlm_run_api_assets__asset_id__vlm__run_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        asset_id: string
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['VlmRunOutput']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
   job_status_api_jobs__job_id__get: {
     parameters: {
       query?: never
@@ -1500,37 +1837,6 @@ export interface operations {
         }
         content: {
           'application/json': unknown
-        }
-      }
-    }
-  }
-  frontend__path__get: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        path: string
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': unknown
-        }
-      }
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['HTTPValidationError']
         }
       }
     }

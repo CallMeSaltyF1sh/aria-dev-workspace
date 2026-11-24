@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, update
 
-from . import media, services, frame_sets, annotation_exports
+from . import media, services, frame_sets, annotation_exports, vlm
 from .responses import (
     AssetOutput,
     DeletionOutput,
@@ -23,6 +23,10 @@ from .responses import (
     JobOutput,
     LibraryOutput,
     AnnotationExportSummary,
+    VlmConfigOutput,
+    VlmPromptOutput,
+    VlmRunOutput,
+    VlmRunSummary,
 )
 from .storage import DATA, LOCK, ROOT, WORK, asset_row, assets, digest, engine, jobs, source_path
 
@@ -331,6 +335,47 @@ def frame_file(asset_id: str, group_id: str, filename: str):
     if filename not in filenames:
         raise FileNotFoundError("Frame not found.")
     return FileResponse(WORK / "frames" / asset_id / group_id / filename)
+
+
+class VlmInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    model: str = Field(default="qwen3-vl-plus", min_length=1, max_length=200)
+    garment: Literal["", "shirt", "jacket"] = ""
+    step_ms: Literal[500, 1000, 2000] = 500
+    context_ms: Literal[0, 1000, 2000, 4000] = 2000
+    width: int = Field(default=640, ge=128, le=1280)
+    workers: int = Field(default=8, ge=1, le=16)
+
+
+@app.get("/api/vlm/config", response_model=VlmConfigOutput)
+def vlm_config():
+    return vlm.config()
+
+
+@app.get("/api/vlm/prompt", response_model=VlmPromptOutput)
+def vlm_prompt():
+    return vlm.prompt()
+
+
+@app.post("/api/assets/{asset_id}/vlm", response_model=JobOutput)
+def start_vlm(asset_id: str, body: VlmInput):
+    if not vlm.api_key():
+        raise ValueError("AIHUBMIX_API_KEY is not set. Add it to .env.local and restart.")
+    if body.model not in vlm.models():
+        raise ValueError("Model is not in VLM_MODELS. Add it to .env.local and restart.")
+    return services.submit_job(asset_id, "vlm", body.model_dump())
+
+
+@app.get("/api/assets/{asset_id}/vlm", response_model=list[VlmRunSummary])
+def vlm_runs(asset_id: str):
+    asset_row(asset_id)
+    return vlm.runs(asset_id)
+
+
+@app.get("/api/assets/{asset_id}/vlm/{run_id}", response_model=VlmRunOutput)
+def vlm_run(asset_id: str, run_id: str):
+    asset_row(asset_id)
+    return vlm.get(asset_id, run_id)
 
 
 @app.get("/api/jobs/{job_id}", response_model=JobOutput)
