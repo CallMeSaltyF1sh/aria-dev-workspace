@@ -2,6 +2,8 @@
 
 The first working module manages local MP4/VRS recordings, timeline annotations and manually generated full-video frame sets. Prompt Library, VLM Tasks and Evaluation currently show placeholders; no model requests are sent.
 
+For a new machine, follow the [root README](../README.md) first. It covers installation, project directories, where recordings belong, generated data locations, backups and annotation sharing. The startup commands below assume the local dependencies have already been installed.
+
 ## Start on this Mac
 
 The dependencies are installed. From the project root:
