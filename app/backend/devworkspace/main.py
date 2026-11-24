@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, update
 
-from . import media, services, frame_sets, annotation_exports, vlm
+from . import media, services, frame_sets, annotation_exports, annotation_imports, vlm
 from .responses import (
     AssetOutput,
     DeletionOutput,
@@ -27,6 +27,8 @@ from .responses import (
     VlmPromptOutput,
     VlmRunOutput,
     VlmRunSummary,
+    AnnotationImportPreview,
+    AnnotationImportResult,
 )
 from .storage import DATA, LOCK, ROOT, WORK, asset_row, assets, digest, engine, jobs, source_path
 
@@ -117,6 +119,20 @@ def annotation_export(format: Literal["csv", "json"], asset_id: str | None = Non
             "Cache-Control": "no-store",
         },
     )
+
+
+@app.post("/api/annotations/import-preview", response_model=AnnotationImportPreview)
+def annotation_import_preview(file: UploadFile = File()):
+    return annotation_imports.preview(annotation_imports.parse(file.file.read()))
+
+
+@app.post("/api/annotations/import", response_model=AnnotationImportResult)
+def annotation_import(
+    file: UploadFile = File(),
+    token: str = Form(),
+    overwrite: list[str] = Form(default=[]),
+):
+    return annotation_imports.apply(file.file.read(), token, overwrite)
 
 
 class DirectoryInput(BaseModel):

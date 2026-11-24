@@ -89,6 +89,40 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/annotations/import-preview': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Annotation Import Preview */
+    post: operations['annotation_import_preview_api_annotations_import_preview_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/annotations/import': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Annotation Import */
+    post: operations['annotation_import_api_annotations_import_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/directories': {
     parameters: {
       query?: never
@@ -467,6 +501,51 @@ export interface components {
       /** Missing Source Count */
       missing_source_count: number
     }
+    /** AnnotationImportPreview */
+    AnnotationImportPreview: {
+      /** Rows */
+      rows: components['schemas']['AnnotationImportRow'][]
+      /** Counts */
+      counts: {
+        [key: string]: number
+      }
+      /** Token */
+      token: string
+    }
+    /** AnnotationImportResult */
+    AnnotationImportResult: {
+      /** Imported */
+      imported: number
+      /** Skipped */
+      skipped: number
+    }
+    /** AnnotationImportRow */
+    AnnotationImportRow: {
+      /** Index */
+      index: number
+      /** Video Id */
+      video_id: string
+      /** Source Hash */
+      source_hash: string
+      /** Segment Count */
+      segment_count: number
+      /** Unlabeled Count */
+      unlabeled_count: number
+      /** Asset Id */
+      asset_id: string | null
+      /** Local Path */
+      local_path: string | null
+      /** Local Revision */
+      local_revision: number
+      /**
+       * Status
+       * @enum {string}
+       */
+      status:
+        'new' | 'conflict' | 'identical' | 'no_match' | 'ambiguous' | 'invalid'
+      /** Message */
+      message: string
+    }
     /** AssetOutput */
     AssetOutput: {
       /** Id */
@@ -491,6 +570,23 @@ export interface components {
        * @default not_started
        */
       annotation: string
+    }
+    /** Body_annotation_import_api_annotations_import_post */
+    Body_annotation_import_api_annotations_import_post: {
+      /** File */
+      file: string
+      /** Token */
+      token: string
+      /**
+       * Overwrite
+       * @default []
+       */
+      overwrite: string[]
+    }
+    /** Body_annotation_import_preview_api_annotations_import_preview_post */
+    Body_annotation_import_preview_api_annotations_import_preview_post: {
+      /** File */
+      file: string
     }
     /** Body_import_media_api_import_post */
     Body_import_media_api_import_post: {
@@ -1064,6 +1160,72 @@ export interface operations {
         }
         content: {
           'application/json': unknown
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  annotation_import_preview_api_annotations_import_preview_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'multipart/form-data': components['schemas']['Body_annotation_import_preview_api_annotations_import_preview_post']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AnnotationImportPreview']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  annotation_import_api_annotations_import_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'multipart/form-data': components['schemas']['Body_annotation_import_api_annotations_import_post']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AnnotationImportResult']
         }
       }
       /** @description Validation Error */

@@ -2,7 +2,7 @@
 
 A local workspace for reviewing Project Aria recordings, annotating dressing phases and preparing timestamped frames for VLM experiments.
 
-**Available now:** Data Library, MP4 playback, timeline annotation, full-video frame extraction, CSV/JSON annotation export, and a single-recording **VLM Run** (sliding-window phase labels through the AIHubMix API). Prompt Library, multi-recording VLM Tasks and Evaluation are placeholders for later development. No GPU is required; only VLM Run needs an API key.
+**Available now:** Data Library, MP4 playback, timeline annotation, full-video frame extraction, CSV/JSON annotation export and import, and a single-recording **VLM Run** (sliding-window phase labels through the AIHubMix API). Prompt Library, multi-recording VLM Tasks and Evaluation are placeholders for later development. No GPU is required; only VLM Run needs an API key.
 
 Each teammate runs their own local instance. Research recordings, frames, annotations, databases and credentials are not included in the repository.
 
@@ -166,7 +166,22 @@ MP4 playback and extraction are verified. VRS requires a usable RGB stream; brow
 
 Downloads go to the browser's configured download location or a location chosen in its save dialog. The app does **not** automatically write exports into the project. If saving inside the project, use `exports/`; that directory and generated `annotations_*.csv`/`annotations_*.json` filenames are ignored by Git.
 
-Source recordings and exported labels are shared separately from Git. General import of these new export bundles is not implemented yet; do not assume copying them into `data/` imports the labels. The existing reviewed CSV migration utility is documented in [app/README.md](app/README.md).
+Source recordings and exported labels are shared separately from Git. Copying an export into `data/` does not import it; use **Data Library → Import annotations** instead (below). The older pilot CSV migration utility is documented in [app/README.md](app/README.md).
+
+### Import annotations from teammates
+
+Choose **Data Library → Import annotations** and select a CSV or JSON file produced by Export annotations. Each record is matched to a recording in your `data/` by its source hash, so the video must be the same file but may have another name or folder. A preview lists every record before anything is written:
+
+| Result | Meaning |
+| --- | --- |
+| Will import | The recording has no saved annotation yet; it is imported. |
+| Differs from local | You already saved a different annotation. It is kept unless you tick **Overwrite**. |
+| Already the same | Nothing to do. |
+| No matching video | No local recording has this content. Add the video to `data/` and scan. |
+| Ambiguous | Several identical copies exist and none has the exported filename. |
+| Invalid | Duration, labels or intervals do not match the local recording. |
+
+Imported annotations are saved as new local revisions. If annotations change between preview and import, the import is refused and must be previewed again.
 
 ## 7. Build without the frontend development server
 
