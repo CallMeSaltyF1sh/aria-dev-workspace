@@ -10,6 +10,10 @@ outputs/vlm_pilot/
 .superdesign/tmp/
 data/
 workspace/
+# Locally exported research annotations
+/exports/
+annotations_*.csv
+annotations_*.json
 work/
 tmp/
 .DS_Store

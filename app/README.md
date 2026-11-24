@@ -81,7 +81,19 @@ PYTHONPATH=app/backend app/backend/.venv/bin/python -m devworkspace.migrate_csv 
 
 The importer refuses a changed review, changed CSV, changed recording or newer draft. It writes new draft JSONs and leaves the original CSV intact. An interrupted multi-asset import can be reviewed again; it is not a cross-file transaction.
 
-## Validation
+## Export annotations
+
+- In **Annotation**, save changes and choose **Export** → **Export CSV** or **Export JSON**. Export is disabled for unsaved edits and before the first save.
+- In **Data Library**, **Export annotations** exports one combined file for **all folders**, independent of search, filters or selection. The preview shows recording, segment and unlabeled counts.
+- A recording is included only when its saved draft contains at least one valid phase (`P0`–`P4` or `unclear`). Saved drafts containing only unclassified intervals are excluded. Partially labeled recordings retain every interval: JSON uses `null`, CSV uses an empty phase cell. Unclassified does not become P0 or unclear.
+- Export reads a consistent snapshot of the latest saved drafts and never updates them. Missing or changed source recordings remain exportable as historical annotations, with explicit `source_status` flags and preview counts. The exported hash and duration always belong to the saved annotation's source.
+- JSON uses export schema v1, includes phase definitions, counts and a `records` array. Each record contains relative `video_id`, local asset ID, source hash, duration, time basis, saved revision, label/schema versions, save time, annotator ID, source status and intervals.
+- CSV is UTF-8 with BOM, one interval per row. It repeats recording/provenance fields and includes integer `start_ms`/`end_ms`, three-decimal `start_s`/`end_s`, phase and phase name. Formula-like string cells receive a leading apostrophe for spreadsheet safety; JSON preserves exact strings.
+- Source IDs/relative filenames and source hashes help match recordings across computers; local asset UUIDs alone are not portable identities. Export does not include video, frames, study metadata, absolute machine paths or credentials. Filenames and annotation content are not automatically anonymized.
+- Generated `annotations_*.csv`/`annotations_*.json`, `exports/`, and the original `workspace/annotations/` are ignored by Git. Share exports separately when needed.
+- API: `GET /api/annotations/export-summary[?asset_id=...]`; `GET /api/annotations/export?format=csv|json[&asset_id=...]`. Omitting the asset ID exports all eligible saved drafts.
+
+## Validation commands
 
 ```sh
 app/backend/.venv/bin/python -m pytest app/backend/tests -q
