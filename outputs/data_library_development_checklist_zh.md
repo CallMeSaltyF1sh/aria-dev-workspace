@@ -51,17 +51,17 @@ workspace/previews/<asset_id>/           可重建播放代理和时间映射
 workspace/annotations/<asset_id>/
   draft.json
   versions/v001.json                     后续评估快照
-workspace/frames/<asset_id>/<group_id>/
-  frame_0001.jpg
+workspace/frames/<asset_id>/<set_id>/
+  frame_000000.jpg
   manifest.json
 ```
 
-group_id 表示单个目标点的一组帧，替代此前含义不够清楚的 sampling_id。缓存匹配仍由源哈希、流、目标时间、请求偏移、分辨率、抽帧版本等共同决定。每组包含目标帧、上下文帧和清单。图片不会加入原录像列表。
+set_id 表示整段录像按固定 0.1 秒间隔生成的一套帧缓存。缓存匹配由源哈希、流、时间基准、全视频模式、间隔、分辨率与抽帧版本共同决定。图片不会加入原录像列表；历史按目标生成的旧帧组保留在磁盘，不混入当前界面。
 
 - 标注内部用整数毫秒，半开区间 [start_ms,end_ms)。0.1 秒吸附用于可编辑边界，不舍入录像真实结束时间。
 - 未分类使用 null，unclear 是独立有效标签。P0–P4/unclear 共用一份带版本的阶段定义，供图例和后续 Prompt 使用。
 - annotation draft 记录 asset_id、源哈希、时长、时间基准、schema/标签版本、revision、区间和保存时间。保存失败不显示 Saved。
-- 帧清单记录帧组 ID、素材及源哈希、目标时间、每张图的请求时间/实际时间/相对路径、目标帧身份、分辨率与提取参数。VRS 保留 DEVICE_TIME 与预览媒体时间映射；同一实际帧去重。
+- 帧清单记录全视频缓存 ID、素材及源哈希、schema/extractor 版本、固定间隔、每张图对应的全部请求时间、实际时间、原始帧索引、尺寸及相对路径。同一实际帧去重但保留全部请求映射；VRS 还记录 DEVICE_TIME。模型预测目标与上下文选择属于后续模型模块。
 - 文件原地替换后，标注和帧组必须显示 source changed 并重新检查。路径移动尽量保留稳定 ID，内容重复保留独立素材记录并提示相同哈希。
 
 ## 开发与验收 checklist
@@ -103,22 +103,23 @@ group_id 表示单个目标点的一组帧，替代此前含义不够清楚的 s
 - [ ] 旧 CSV 导入前需检查末端与实际媒体时长，完成非写入式预览，待确认后应用修订。
 - [x] Related Tasks 在本阶段显示真实空状态，为后续模块保留路由。
 
-### D. Frames & QC
+### D. Frames & QC（2026-11-24 更新）
 
-- [x] 初始无帧时显示空状态，选择目标时间、帧数和间隔后点 Generate frames 才处理。
-- [x] 按需创建 workspace/frames/<asset_id>/<group_id>/，生成图片与 manifest.json。
-- [x] 目标帧保证进入该组；偶数帧多取较早一侧，起止处剔除越界帧；同一实际帧只保存一次。
-- [x] 展示实际图片、目标标识、请求/实际时间与偏差。重复同配置复用有效缓存，换配置产生新组。
-- [x] 刷新后读取已生成帧组；状态区分生成中、完成、失败、source changed。
-- [x] 在接口中提供帧组列表，供后续 Quick test 单选和 Tests 多选复用。
-- [x] Aria VRS 适配已实现：检查 RGB 流并使用 DEVICE_TIME，代理写入独立目录；不覆盖原始文件。
-- [ ] 真实 Gen 2 VRS 文件的流、画面、标注时间和 DEVICE_TIME 映射端到端验收。已通过模拟 provider 的不等间隔时间戳测试，不能替代真实样例。
+- [x] 初始不自动抽帧。移除 Target time / Frames per group / Frame spacing；点击 Generate frames 后整段录像按 0.1 秒间隔生成。
+- [x] 请求时间为 0、100、200…ms，严格小于真实结束时间；选择最近原始帧，等距取较早帧；重复原始帧仅保存一次，记录全部请求时间。
+- [x] 按需创建 workspace/frames/<asset_id>/<set_id>/，原子发布 JPEG 与 manifest.json；相同有效配置复用，缺图缓存重建。
+- [x] MP4 只顺序解码一次；VRS 复用 provider 并使用 DEVICE_TIME。生成阶段和已完成数量写入数据库，页面显示黑色进度条。
+- [x] 结果每页 24 张；接口返回摘要与分页结果，避免一次载入全量图片。显示实际图片、请求/实际时间与偏差。
+- [x] 刷新后读取已有缓存与任务状态；支持失败、interrupted、source changed 状态。
+- [x] 提供全视频缓存摘要列表，供后续 Quick test 单选和 Tests 多选；预测时间与上下文帧在模型模块配置，抽帧不调用模型。
+- [x] 历史目标帧组保留在磁盘且 API 可读取，不重新解释为完整录像缓存。
+- [ ] 真实 Gen 2 VRS 文件的画面与 DEVICE_TIME 映射端到端验收；模拟 provider 测试不能替代真实样例。
 
 ### E. 第一阶段交付验收
 
 - [x] 启动后看见试验 MP4，可连续播放、拖动 seek、切换素材。
 - [x] 修改边界与阶段后 Save，检查磁盘 JSON，再重启页面确认一致。
-- [x] 生成一组真实图片，检查文件、目标帧、manifest 时间戳及缓存复用。
+- [x] 生成一组真实图片，检查文件、整段覆盖、manifest 时间戳、分页及缓存复用。
 - [x] 临时媒体样本覆盖重名导入、目录重命名、外部文件变化、删除影响和读取失败。
 - [x] 通过前端类型检查/构建、后端 lint，以及文件操作、标注冲突和时间映射的针对性测试。
 - [x] 浏览器完成“列表 → 视频 → 标注保存 → 手动生成帧 → 刷新恢复”。

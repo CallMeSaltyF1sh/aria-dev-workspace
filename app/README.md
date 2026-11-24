@@ -1,6 +1,6 @@
 # Dev Workspace — local Data Library
 
-The first working module manages local MP4/VRS recordings, timeline annotations and manually generated frame groups. Prompt Library, VLM Tasks and Evaluation currently show placeholders; no model requests are sent.
+The first working module manages local MP4/VRS recordings, timeline annotations and manually generated full-video frame sets. Prompt Library, VLM Tasks and Evaluation currently show placeholders; no model requests are sent.
 
 ## Start on this Mac
 
@@ -54,9 +54,9 @@ Back up `data/` **and** `workspace/` together. The database preserves IDs used b
 3. In **Video & Annotation**, seek to a time and choose **Add split point**, or click the annotation axis. Drag in 0.1-second steps. Arrow keys move a focused boundary; Delete/Backspace removes it. Click elsewhere to deselect.
 4. Choose a phase for each interval, then **Save**. Drafts may contain unclassified intervals. A final short interval retains the true recording end. Deleting a boundary retains equal neighboring labels and clears unequal ones.
 5. **Metadata** stores anonymous participant, trial, garment, condition, split and overlay status. These are descriptive fields; the app does not enforce participant-level data partitioning yet.
-6. **Frames & QC** generates one target group per request. Set target, frame count and spacing. The target is always included; out-of-range context is omitted; duplicate decoded frames are merged. Identical settings reuse an intact cache.
+6. **Frames & QC** prepares the entire recording at a fixed 0.1-second interval. Click **Generate frames** to start; no target time, frame count or spacing inputs are required. Progress is persisted, and results are shown 24 images per page. Identical source/configuration reuses an intact cache. Frames are never generated just by opening the page.
 
-Playback speed supports 0.5/0.75/1/1.25/1.5/2×. The left/right controls move one **decoded frame**, rather than one second. Frame groups retain requested time, actual time, source hash, extraction settings, dimensions and target identity. Even frame counts favor the earlier context side.
+Playback speed supports 0.5/0.75/1/1.25/1.5/2×. The left/right controls move one **decoded frame**, rather than one second. Full-video frame sets sample `0, 100, 200, …` milliseconds strictly before the recording end. Each request selects the nearest original decoded frame, with an earlier-frame tie break. Duplicate selections produce one JPEG and retain all corresponding `requested_times_ms` in the manifest. Actual timestamps, original frame index, dimensions, source hash, extraction version and settings remain traceable. MP4 is decoded in a single pass; VRS uses DEVICE_TIME and one provider per extraction. Generating frames does not send them to a model. Later Prompt tests and VLM Tasks select their prediction times and context from this cache.
 
 Imports reject existing names. Select **Skip existing filenames** for a batch or change an incoming single-file name. Equal content under a different name requires **Keep duplicate content**. Deletion previews list real files and retained references; active processing blocks deletion. Deleting a source preserves its missing entry, saved annotation and frame history. Interrupted jobs are shown after a service restart; run the same action again to retry.
 
@@ -100,4 +100,13 @@ With the backend running, regenerate shared request/response types using `npm ru
 - **VRS adapter implemented, real recording pending:** RGB stream discovery, DEVICE_TIME reads, frame export, on-demand VFR preview and decoded timestamp validation. A simulated provider test checks irregular timestamp preservation; it does not verify actual Gen 2 recordings. Eye tracking, OptiTrack synchronization and sensor visualizations are outside this first stage.
 - The built-in dressing labels are provisional. Saved drafts use `dressing-v1`; immutable evaluation snapshots belong to the later Evaluation module.
 - No Gateway key is read in this stage. All study files stay local. There is no multiuser authentication; keep the service bound to loopback.
-- Media operations currently have a five-minute subprocess timeout and two workers. Very long VRS previews may require a later streaming implementation. Frame generation creates one group at a time; batch sampling belongs to VLM Tasks.
+- MP4 whole-video extraction uses a one-hour subprocess limit; metadata and playback proxy operations retain the five-minute limit. Two jobs can run concurrently. Very long VRS previews may require a later streaming implementation. Batch model sampling belongs to VLM Tasks.
+
+## Whole-video frame cache contract (2026-11-24)
+
+- `POST /api/assets/{id}/frames` takes `{"interval_ms":100,"width":1280}`. The interval is fixed at 100 ms. Old target/count/spacing request fields are rejected.
+- `GET /api/assets/{id}/frames` returns compact frame-set summaries, not every frame. `GET /api/assets/{id}/frames/{set_id}?page=1&page_size=24` returns a bounded page (maximum 100). `GET /api/frame-groups` exposes full-video summaries for future selection controls; its URL is retained for compatibility with the earlier plan.
+- `workspace/frames/<asset_id>/<set_id>/manifest.json` uses schema version 2 and extraction version 3, with `mode=full_video`, sampling settings, source identity, `sample_count` and an ordered `frames` array. Each frame contains `requested_ms` (first request), `requested_times_ms` (all deduplicated requests), `actual_ms`, original `index`, dimensions and JPEG path; VRS also includes `device_time_ns`.
+- `set_id` depends on source hash, RGB stream, time basis, mode, interval, width and extractor version. Partial sets stay in a `.pending` directory and are published atomically only after validation. Incomplete cached sets are rebuilt. Progress is persisted in SQLite via migration 003.
+- Legacy target-centered caches remain on disk and remain readable through the API, but the new Frames & QC screen lists full-video sets only. Their old sample-group meaning is not reinterpreted.
+- Preparing every 0.1-second frame is distinct from running the VLM at every 0.1 seconds. Quick test will select one full-video set and a test target/context; Tests can select multiple sets with a shared prediction sampling rule. Those model controls belong to their later modules.
