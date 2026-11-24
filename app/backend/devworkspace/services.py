@@ -223,6 +223,21 @@ def get_draft(asset_id):
     }
 
 
+def check_intervals(intervals, duration):
+    end = 0
+    for index, interval in enumerate(intervals):
+        start, stop, phase = interval["start_ms"], interval["end_ms"], interval["phase"]
+        if start != end or stop <= start or stop > duration or phase not in [None, *PHASES]:
+            raise ValueError("Intervals must cover the recording without gaps or overlaps.")
+        if index < len(intervals) - 1 and stop % 100:
+            raise ValueError("Editable boundaries must use 0.1-second steps.")
+        if index < len(intervals) - 1 and stop - start < 100:
+            raise ValueError("Segments must be at least 0.1 seconds.")
+        end = stop
+    if not intervals or end != duration:
+        raise ValueError("Annotation must cover the complete recording.")
+
+
 def save_draft(asset_id, revision, intervals):
     with LOCK:
         asset = asset_row(asset_id)
@@ -234,19 +249,7 @@ def save_draft(asset_id, revision, intervals):
             )
         if draft["revision"] != revision:
             raise RuntimeError("A newer draft was saved. Reload before editing again.")
-        duration = round(asset["info"].get("duration_ms", 0))
-        end = 0
-        for index, interval in enumerate(intervals):
-            start, stop, phase = interval["start_ms"], interval["end_ms"], interval["phase"]
-            if start != end or stop <= start or stop > duration or phase not in [None, *PHASES]:
-                raise ValueError("Intervals must cover the recording without gaps or overlaps.")
-            if index < len(intervals) - 1 and stop % 100:
-                raise ValueError("Editable boundaries must use 0.1-second steps.")
-            if index < len(intervals) - 1 and stop - start < 100:
-                raise ValueError("Segments must be at least 0.1 seconds.")
-            end = stop
-        if not intervals or end != duration:
-            raise ValueError("Annotation must cover the complete recording.")
+        check_intervals(intervals, round(asset["info"].get("duration_ms", 0)))
         draft.update(
             intervals=intervals,
             revision=revision + 1,

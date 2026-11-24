@@ -186,3 +186,27 @@ class VlmRunOutput(VlmRunSummary):
     prompt_hash: str
     windows: list[VlmWindowOutput]
     phases: list[VlmPhaseOutput]
+
+
+class AnnotationImportRow(BaseModel):
+    index: int
+    video_id: str
+    source_hash: str
+    segment_count: int
+    unlabeled_count: int
+    asset_id: str | None
+    local_path: str | None
+    local_revision: int
+    status: Literal["new", "conflict", "identical", "no_match", "ambiguous", "invalid"]
+    message: str
+
+
+class AnnotationImportPreview(BaseModel):
+    rows: list[AnnotationImportRow]
+    counts: dict[str, int]
+    token: str
+
+
+class AnnotationImportResult(BaseModel):
+    imported: int
+    skipped: int
