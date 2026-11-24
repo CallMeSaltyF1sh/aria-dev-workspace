@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy import insert, select, update
 
-from . import media, frame_sets
+from . import media, frame_sets, vlm
 from .storage import (
     DATA,
     LOCK,
@@ -316,7 +316,7 @@ def submit_job(asset_id, kind, settings=None):
                 connection.execute(
                     update(jobs).where(jobs.c.id == job["id"]).values(status="running")
                 )
-            if kind == "frames":
+            if kind in {"frames", "vlm"}:
                 last_update = 0.0
                 last_stage = None
 
@@ -338,7 +338,12 @@ def submit_job(asset_id, kind, settings=None):
                             )
                         last_update, last_stage = clock, stage
 
-                result = frame_sets.summary(create_frames(asset, settings, progress), asset["hash"])
+                if kind == "vlm":
+                    result = vlm.run(asset, settings, progress)
+                else:
+                    result = frame_sets.summary(
+                        create_frames(asset, settings, progress), asset["hash"]
+                    )
             else:
                 output = media.make_proxy(source_path(asset["path"], exists=True), asset)
                 result = {"path": output.relative_to(WORK).as_posix()}

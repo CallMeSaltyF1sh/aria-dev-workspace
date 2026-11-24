@@ -23,6 +23,7 @@ import {
 } from './api'
 import { Annotation } from './Annotation'
 import { Frames } from './Frames'
+import { VlmPanel } from './VlmRun'
 import { filterAssets } from './libraryFilters'
 import { Modal } from './components'
 import styles from './Detail.module.css'
@@ -185,7 +186,7 @@ export function DetailPage({
           ['video', 'Video & Annotation'],
           ['metadata', 'Metadata'],
           ['frames', 'Frames & QC'],
-          ['tasks', 'Related Tasks'],
+          ['tasks', 'VLM Run'],
         ].map(([key, label]) => (
           <button
             role="tab"
@@ -344,9 +345,7 @@ export function DetailPage({
       )}
       {tab === 'frames' && <Frames asset={item} />}
       {tab === 'tasks' && (
-        <div className="card empty">
-          No VLM tasks reference this recording yet.
-        </div>
+        <VlmPanel asset={item} draft={draft} phases={library.phases} />
       )}
       {error && (
         <p className="error" role="alert">

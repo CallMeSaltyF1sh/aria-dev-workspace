@@ -12,6 +12,11 @@ export type Job = components['schemas']['JobOutput']
 export type Library = components['schemas']['LibraryOutput']
 export type Deletion = components['schemas']['DeletionOutput']
 export type ExportSummary = components['schemas']['AnnotationExportSummary']
+export type VlmConfig = components['schemas']['VlmConfigOutput']
+export type VlmPrompt = components['schemas']['VlmPromptOutput']
+export type VlmSettings = components['schemas']['VlmInput']
+export type VlmRunSummary = components['schemas']['VlmRunSummary']
+export type VlmRun = components['schemas']['VlmRunOutput']
 
 export async function api<T>(
   path: string,

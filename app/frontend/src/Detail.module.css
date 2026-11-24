@@ -225,3 +225,23 @@
   font-size: 10px;
   font-family: 'Geist Mono', monospace;
 }
+
+.vlmTrack {
+  position: relative;
+  height: 22px;
+  margin: 4px 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.vlmTrack span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 22px;
+  text-align: center;
+  white-space: nowrap;
+  border-right: 1px solid #fff;
+}

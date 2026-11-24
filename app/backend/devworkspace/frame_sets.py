@@ -110,7 +110,16 @@ def export_mp4(path, info, frames, directory, width, progress):
             process.stdout.close()
 
 
+LOCKS = {}
+
+
 def generate(asset, settings, progress=lambda *_: None):
+    """Serialize per recording: a Frames job and VLM runs may build the same cache at once."""
+    with LOCKS.setdefault(asset["id"], threading.Lock()):
+        return build(asset, settings, progress)
+
+
+def build(asset, settings, progress):
     path = source_path(asset["path"], exists=True)
     settings = {"mode": "full_video", "interval_ms": 100, "width": settings["width"]}
     signature = {

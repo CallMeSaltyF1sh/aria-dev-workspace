@@ -132,3 +132,57 @@ class AnnotationExportSummary(BaseModel):
     unlabeled_count: int
     changed_source_count: int
     missing_source_count: int
+
+
+class VlmConfigOutput(BaseModel):
+    configured: bool
+    api_url: str
+    models: list[str]
+
+
+class VlmPromptOutput(BaseModel):
+    mode: str
+    source: str
+    template: str
+    phases: str
+    labels: list[str]
+    hash: str
+    file: str
+
+
+class VlmRunSummary(BaseModel):
+    id: str
+    created_at: str
+    settings: dict[str, Any]
+    seconds: float
+    counts: dict[str, int]
+
+
+class VlmWindowOutput(BaseModel):
+    start_ms: int
+    end_ms: int
+    target_ms: int
+    actual_target_ms: float
+    context_ms: list[int]
+    label: str
+    status: Literal["valid", "invalid_output", "request_failed"]
+    reason: str | None = None
+    error: str | None = None
+    raw: str | None = None
+
+
+class VlmPhaseOutput(BaseModel):
+    label: str
+    start_ms: int
+    end_ms: int
+
+
+class VlmRunOutput(VlmRunSummary):
+    asset_id: str
+    source_hash: str
+    frame_set_id: str
+    mode: str
+    api_url: str
+    prompt_hash: str
+    windows: list[VlmWindowOutput]
+    phases: list[VlmPhaseOutput]
