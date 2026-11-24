@@ -140,6 +140,89 @@ def test_media_range(client, video):
     assert timestamps[:3] == [0, 100, 200]
 
 
+def test_annotation_export_csv_json_and_partial_labels(client, video):
+    import io
+
+    renamed = DATA / '衣物, "trial".mp4'
+    video.rename(renamed)
+    asset = scan(client)
+    export = f"/api/annotations/export?asset_id={asset['id']}"
+    assert client.get(export + "&format=json").status_code == 400
+    endpoint = f"/api/assets/{asset['id']}/annotation"
+    draft = client.get(endpoint).json()
+    body = {
+        "revision": 0,
+        "intervals": [
+            {"start_ms": 0, "end_ms": 100, "phase": "P1"},
+            {"start_ms": 100, "end_ms": draft["duration_ms"], "phase": None},
+        ],
+    }
+    assert client.put(endpoint, json=body).status_code == 200
+    saved_file = WORK / "annotations" / asset["id"] / "draft.json"
+    before = saved_file.read_bytes()
+    response = client.get(export + "&format=json")
+    assert response.status_code == 200
+    assert "attachment" in response.headers["content-disposition"]
+    value = response.json()
+    assert value["counts"]["recording_count"] == 1
+    assert value["counts"]["unlabeled_count"] == 1
+    record = value["records"][0]
+    assert record["video_id"] == renamed.name
+    assert record["annotation_revision"] == 1
+    assert record["intervals"] == body["intervals"]
+    assert record["source_status"] == "current"
+    assert "study" not in record
+    assert str(DATA) not in response.text
+    csv_response = client.get(export + "&format=csv")
+    rows = list(csv.DictReader(io.StringIO(csv_response.content.decode("utf-8-sig"))))
+    assert len(rows) == 2
+    assert rows[0]["video_id"] == renamed.name
+    assert rows[0]["start_ms"] == "0" and rows[0]["end_s"] == "0.100"
+    assert rows[1]["phase"] == ""
+    assert saved_file.read_bytes() == before
+
+
+def test_annotation_bulk_export_all_folders_excludes_blank_drafts(client, video):
+    import shutil
+
+    first = scan(client)
+    (DATA / "test").mkdir()
+    shutil.copyfile(video, DATA / "test" / "second.mp4")
+    shutil.copyfile(video, DATA / "blank.mp4")
+    assets = client.post("/api/scan").json()["assets"]
+    for item in assets:
+        url = f"/api/assets/{item['id']}/annotation"
+        draft = client.get(url).json()
+        draft["intervals"][0]["phase"] = None if item["path"] == "blank.mp4" else "unclear"
+        assert (
+            client.put(url, json={"revision": 0, "intervals": draft["intervals"]}).status_code
+            == 200
+        )
+    summary = client.get("/api/annotations/export-summary").json()
+    assert summary["recording_count"] == 2
+    assert summary["segment_count"] == 2
+    records = client.get("/api/annotations/export?format=json").json()["records"]
+    assert {r["video_id"] for r in records} == {first["path"], "test/second.mp4"}
+    assert all(r["intervals"][0]["phase"] == "unclear" for r in records)
+    assert client.get("/api/annotations/export?format=xml").status_code == 422
+
+
+def test_annotation_export_preserves_source_warnings(client, video):
+    asset = scan(client)
+    url = f"/api/assets/{asset['id']}/annotation"
+    draft = client.get(url).json()
+    draft["intervals"][0]["phase"] = "P0"
+    assert client.put(url, json={"revision": 0, "intervals": draft["intervals"]}).status_code == 200
+    video.write_bytes(b"changed recording")
+    value = client.get("/api/annotations/export?format=json").json()
+    assert value["counts"]["changed_source_count"] == 1
+    assert value["records"][0]["source_hash"] == asset["hash"]
+    video.unlink()
+    value = client.get("/api/annotations/export?format=json").json()
+    assert value["counts"]["missing_source_count"] == 1
+    assert value["records"][0]["source_status"] == "missing"
+
+
 def test_duplicate_content_requires_explicit_confirmation(client, video):
     scan(client)
     with video.open("rb") as stream:

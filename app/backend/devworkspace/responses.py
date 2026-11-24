@@ -124,3 +124,11 @@ class DeletionOutput(BaseModel):
     token: str
     annotations: int
     frame_groups: int
+
+
+class AnnotationExportSummary(BaseModel):
+    recording_count: int
+    segment_count: int
+    unlabeled_count: int
+    changed_source_count: int
+    missing_source_count: int

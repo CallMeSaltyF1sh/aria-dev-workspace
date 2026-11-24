@@ -8,12 +8,12 @@ from typing import Literal
 from alembic import command
 from alembic.config import Config
 from fastapi import FastAPI, File, Form, Query, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, update
 
-from . import media, services, frame_sets
+from . import media, services, frame_sets, annotation_exports
 from .responses import (
     AssetOutput,
     DeletionOutput,
@@ -22,6 +22,7 @@ from .responses import (
     FramePageOutput,
     JobOutput,
     LibraryOutput,
+    AnnotationExportSummary,
 )
 from .storage import DATA, LOCK, ROOT, WORK, asset_row, assets, digest, engine, jobs, source_path
 
@@ -92,6 +93,26 @@ def library():
 def scan():
     services.scan()
     return library()
+
+
+@app.get("/api/annotations/export-summary", response_model=AnnotationExportSummary)
+def annotation_export_summary(asset_id: str | None = None):
+    return annotation_exports.build(asset_id)["counts"]
+
+
+@app.get("/api/annotations/export")
+def annotation_export(format: Literal["csv", "json"], asset_id: str | None = None):
+    value = annotation_exports.build(asset_id)
+    content = annotation_exports.render(value, format)
+    filename = f"annotations_{asset_id or 'all'}_{value['exported_at'][:10]}.{format}"
+    return Response(
+        content,
+        media_type="text/csv" if format == "csv" else "application/json",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "no-store",
+        },
+    )
 
 
 class DirectoryInput(BaseModel):
