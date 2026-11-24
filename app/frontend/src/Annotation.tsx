@@ -90,12 +90,17 @@ export function Annotation({
     setSaving(true)
     setError('')
     try {
+      await client.cancelQueries({
+        queryKey: ['annotation', draft.asset_id],
+        exact: true,
+      })
       const value = await api<Draft>(
         '/assets/' + draft.asset_id + '/annotation',
         'PUT',
         { revision: saved.revision, intervals },
       )
       setSaved(value)
+      client.setQueryData(['annotation', draft.asset_id], value)
       void client.invalidateQueries({ queryKey: ['library'] })
       return true
     } catch (error) {

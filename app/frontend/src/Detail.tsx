@@ -82,6 +82,10 @@ export function DetailPage({
   const annotation = useQuery({
     queryKey: ['annotation', assetId],
     queryFn: () => api<Draft>('/assets/' + assetId + '/annotation'),
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
   const times = useQuery({
     queryKey: ['timestamps', assetId],
@@ -112,7 +116,13 @@ export function DetailPage({
   useEffect(() => {
     if (tab !== 'video') video.current?.pause()
   }, [tab])
-  if (asset.isPending || annotation.isPending) return <p>Opening recording…</p>
+  // Initialize the editor from the latest disk-backed response, never an older cached draft.
+  if (
+    asset.isPending ||
+    annotation.isPending ||
+    !annotation.isFetchedAfterMount
+  )
+    return <p>Opening recording…</p>
   if (asset.isError || annotation.isError)
     return (
       <p className="error">
