@@ -2,6 +2,7 @@ import { useEffect, useReducer, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { api, time, type Draft, type Interval, type Library } from './api'
 import styles from './Detail.module.css'
+import { AnnotationExport } from './AnnotationExport'
 
 type Action =
   | { type: 'label'; index: number; phase: Interval['phase'] }
@@ -154,6 +155,17 @@ export function Annotation({
                   ? 'Saved'
                   : 'Not started'}
           </span>
+          <AnnotationExport
+            assetId={draft.asset_id}
+            disabled={dirty || saving || !saved.revision}
+            disabledHint={
+              dirty
+                ? 'Save changes before exporting.'
+                : !saved.revision
+                  ? 'Save an annotation first.'
+                  : undefined
+            }
+          />
           <button
             data-delete-split
             className="danger"

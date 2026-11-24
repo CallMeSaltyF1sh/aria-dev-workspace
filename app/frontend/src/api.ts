@@ -11,6 +11,7 @@ export type FramePage = components['schemas']['FramePageOutput']
 export type Job = components['schemas']['JobOutput']
 export type Library = components['schemas']['LibraryOutput']
 export type Deletion = components['schemas']['DeletionOutput']
+export type ExportSummary = components['schemas']['AnnotationExportSummary']
 
 export async function api<T>(
   path: string,

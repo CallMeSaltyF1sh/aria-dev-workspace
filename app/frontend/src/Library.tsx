@@ -10,6 +10,7 @@ import {
 } from '@tabler/icons-react'
 import { api, time, type Deletion, type Library } from './api'
 import { Modal } from './components'
+import { AnnotationExport } from './AnnotationExport'
 import { filterAssets } from './libraryFilters'
 import styles from './Library.module.css'
 
@@ -86,6 +87,7 @@ export function LibraryPage({
       <div className="pageHead">
         <h1>Data Library</h1>
         <div className="actions">
+          <AnnotationExport />
           <button disabled={busy} onClick={() => run(scan)}>
             <IconRefresh size={16} />
             Scan data/
