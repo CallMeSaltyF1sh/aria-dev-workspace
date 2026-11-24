@@ -140,7 +140,7 @@ function FrameSet({ group, assetId }: { group: Group; assetId: string }) {
   })
   const pages = Math.max(1, Math.ceil(group.frame_count / 24))
   return (
-    <section className="card">
+    <section className={`card ${styles.frameSet}`}>
       <div className="cardHead">
         <div>
           <h2>{group.frame_count} frames</h2>

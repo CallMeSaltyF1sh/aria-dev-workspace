@@ -169,11 +169,29 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
+.frameSet {
+  container: frames / inline-size;
+}
 .frameGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   padding: 15px;
+}
+@container frames (max-width: 760px) {
+  .frameGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@container frames (max-width: 560px) {
+  .frameGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container frames (max-width: 340px) {
+  .frameGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .generationProgress {
   display: block;
