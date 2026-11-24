@@ -29,3 +29,7 @@ tmp/
 playwright-report/
 test-results/
 
+# Local research notes (kept off the shared repository)
+/outputs/aria_glasses_data_guide_zh_en_2026-11-15.md
+/outputs/preliminary_vercel_gateway_vlm_pilot_plan_zh.md
+
