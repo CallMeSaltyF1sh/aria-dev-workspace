@@ -1,13 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, time, type Asset, type Group, type Job } from './api'
+import {
+  api,
+  time,
+  type Asset,
+  type Group,
+  type Job,
+  type FramePage,
+} from './api'
 import styles from './Detail.module.css'
 
 export function Frames({ asset }: { asset: Asset }) {
   const client = useQueryClient()
-  const [target, setTarget] = useState('0')
-  const [count, setCount] = useState('5')
-  const [spacing, setSpacing] = useState('0.4')
   const [jobId, setJobId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -19,7 +23,11 @@ export function Frames({ asset }: { asset: Asset }) {
     queryKey: ['jobs', asset.id],
     queryFn: () => api<Job[]>('/assets/' + asset.id + '/jobs'),
   })
-  const latest = jobId || history.data?.find((j) => j.kind === 'frames')?.id
+  const latest =
+    jobId ||
+    history.data?.find(
+      (j) => j.kind === 'frames' && j.key.includes('"interval_ms"'),
+    )?.id
   const job = useQuery({
     queryKey: ['job', latest],
     enabled: !!latest,
@@ -32,149 +40,171 @@ export function Frames({ asset }: { asset: Asset }) {
   useEffect(() => {
     if (job.data?.status === 'completed')
       void client.invalidateQueries({ queryKey: ['frames', asset.id] })
-  }, [job.data?.status, client, asset.id])
+  }, [job.data?.id, job.data?.status, client, asset.id])
   const processing =
-    busy || ['queued', 'running'].includes(job.data?.status || '')
+    busy ||
+    (!!latest && job.isPending) ||
+    ['queued', 'running'].includes(job.data?.status || '')
+  const sets = groups.data?.filter((group) => group.mode === 'full_video') || []
+  const completed = Number(job.data?.progress?.completed || 0)
+  const total = Number(job.data?.progress?.total || 0)
+  const stage = String(job.data?.progress?.stage || '')
+  const generate = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      const value = await api<Job>('/assets/' + asset.id + '/frames', 'POST', {
+        interval_ms: 100,
+        width: 1280,
+      })
+      setJobId(value.id)
+    } catch (error) {
+      setError((error as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
   return (
     <div className="stack">
       <section className="card">
         <div className="cardHead">
           <h2>Generate frames</h2>
+          <span className="badge">Entire recording · 0.1 s</span>
         </div>
-        <form
-          className="cardBody"
-          onSubmit={(e) => {
-            e.preventDefault()
-            setBusy(true)
-            setError('')
-            void api<Job>('/assets/' + asset.id + '/frames', 'POST', {
-              target_ms: Math.round(Number(target) * 1000),
-              count: Number(count),
-              spacing_ms: Math.round(Number(spacing) * 1000),
-              width: 1280,
-            })
-              .then((value) => setJobId(value.id))
-              .catch((error) => setError(error.message))
-              .finally(() => setBusy(false))
-          }}
-        >
-          <div className={styles.fields}>
-            <label>
-              Target time (s)
-              <input
-                required
-                type="number"
-                min="0"
-                max={(asset.info.duration_ms || 1) / 1000 - 0.001}
-                step="0.1"
-                value={target}
-                onChange={(e) => setTarget(e.target.value)}
-              />
-            </label>
-            <label>
-              Frames per group
-              <input
-                type="number"
-                required
-                min="1"
-                max="31"
-                value={count}
-                onChange={(e) => setCount(e.target.value)}
-              />
-            </label>
-            <label>
-              Frame spacing (s)
-              <input
-                type="number"
-                required
-                min="0.1"
-                max="60"
-                step="0.1"
-                value={spacing}
-                onChange={(e) => setSpacing(e.target.value)}
-              />
-            </label>
-          </div>
+        <div className="cardBody">
           <div className="actions">
             <button
               className="primary"
               disabled={
                 processing || !!asset.missing || asset.info.status === 'error'
               }
+              onClick={generate}
             >
               {processing ? 'Generating…' : 'Generate frames'}
             </button>
-            <span className="small muted">
-              {job.data?.status === 'completed'
-                ? 'Ready on disk'
-                : processing
-                  ? 'Preparing local frame group…'
+            <span className="small muted" role="status">
+              {processing
+                ? stage === 'validating'
+                  ? 'Checking source…'
+                  : total
+                    ? `${completed} / ${total} frames`
+                    : 'Reading timestamps…'
+                : job.data?.status === 'completed' && sets.length
+                  ? 'Ready on disk'
                   : ''}
             </span>
           </div>
+          {processing && (
+            <progress
+              className={styles.generationProgress}
+              aria-label="Frame generation"
+              max={total || 1}
+              value={total ? completed : undefined}
+            />
+          )}
           {(error || job.data?.error) && (
             <p className="error" role="alert">
               {error || job.data?.error}
             </p>
           )}
-        </form>
+          {history.isError && (
+            <p className="error" role="alert">
+              {history.error.message}
+            </p>
+          )}
+        </div>
       </section>
       {groups.isPending ? (
-        <p>Loading frame groups…</p>
+        <p>Loading frame sets…</p>
       ) : groups.isError ? (
         <p className="error">{groups.error.message}</p>
-      ) : !groups.data.length ? (
-        <div className="card empty">
-          No frames generated. Choose a target and generate a frame group.
-        </div>
+      ) : !sets.length ? (
+        <div className="card empty">No full-video frames generated.</div>
       ) : (
-        groups.data.map((group) => (
-          <section className="card" key={group.id}>
-            <div className="cardHead">
-              <div>
-                <h2>Target {time(group.settings.target_ms)}</h2>
-                <span className="small muted mono">
-                  workspace/frames/{asset.id}/{group.id}/
-                </span>
-              </div>
-              <span className="badge">
-                {group.source_changed
-                  ? 'Source changed'
-                  : group.frames.length + ' frames'}
-              </span>
-            </div>
-            <div className={styles.frameGrid}>
-              {group.frames.map((frame) => (
-                <figure
-                  key={frame.file}
-                  className={frame.is_target ? styles.targetFrame : ''}
-                >
-                  <img
-                    src={
-                      '/api/assets/' +
-                      asset.id +
-                      '/frames/' +
-                      group.id +
-                      '/' +
-                      frame.file
-                    }
-                    alt={'Video frame ' + time(frame.actual_ms)}
-                    loading="lazy"
-                  />
-                  <figcaption>
-                    <b>{frame.is_target ? 'Target' : 'Context'}</b>
-                    <span>Requested {time(frame.requested_ms, 3)}</span>
-                    <span>Actual {time(frame.actual_ms, 3)}</span>
-                    <span>
-                      Δ {(frame.actual_ms - frame.requested_ms).toFixed(1)} ms
-                    </span>
-                  </figcaption>
-                </figure>
-              ))}
-            </div>
-          </section>
+        sets.map((group) => (
+          <FrameSet key={group.id} group={group} assetId={asset.id} />
         ))
       )}
     </div>
+  )
+}
+
+function FrameSet({ group, assetId }: { group: Group; assetId: string }) {
+  const [page, setPage] = useState(1)
+  const frames = useQuery({
+    queryKey: ['frame-page', assetId, group.id, page],
+    queryFn: () =>
+      api<FramePage>(
+        `/assets/${assetId}/frames/${group.id}?page=${page}&page_size=24`,
+      ),
+  })
+  const pages = Math.max(1, Math.ceil(group.frame_count / 24))
+  return (
+    <section className="card">
+      <div className="cardHead">
+        <div>
+          <h2>{group.frame_count} frames</h2>
+          <span className="small muted mono">
+            workspace/frames/{assetId}/{group.id}/
+          </span>
+        </div>
+        <span className="badge">
+          {group.source_changed
+            ? 'Source changed'
+            : group.sample_count + ' sample times'}
+        </span>
+      </div>
+      {frames.isPending ? (
+        <p className="empty">Loading frames…</p>
+      ) : frames.isError ? (
+        <p className="error cardBody">{frames.error.message}</p>
+      ) : (
+        <div className={styles.frameGrid}>
+          {frames.data.frames.map((frame) => (
+            <figure key={frame.file}>
+              <img
+                src={`/api/assets/${assetId}/frames/${group.id}/${frame.file}`}
+                alt={'Video frame ' + time(frame.actual_ms, 3)}
+                loading="lazy"
+              />
+              <figcaption>
+                <b>{time(frame.actual_ms, 3)}</b>
+                <span>Requested {time(frame.requested_ms, 3)}</span>
+                <span>
+                  Δ{' '}
+                  {Number(
+                    (frame.actual_ms - frame.requested_ms).toFixed(1),
+                  ).toFixed(1)}{' '}
+                  ms
+                </span>
+                {frame.requested_times_ms &&
+                  frame.requested_times_ms.length > 1 && (
+                    <span>
+                      {frame.requested_times_ms.length} sample times · 1 source
+                      frame
+                    </span>
+                  )}
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      )}
+      <div className={`cardBody actions spread ${styles.pagination}`}>
+        <span className="small muted">
+          Page {page} of {pages} · 24 per page
+        </span>
+        <div className="actions">
+          <button disabled={page === 1} onClick={() => setPage((p) => p - 1)}>
+            Previous page
+          </button>
+          <button
+            disabled={page >= pages}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Next page
+          </button>
+        </div>
+      </div>
+    </section>
   )
 }

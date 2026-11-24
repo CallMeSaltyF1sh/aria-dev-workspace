@@ -262,6 +262,23 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/assets/{asset_id}/frames/{group_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Frame Page */
+    get: operations['frame_page_api_assets__asset_id__frames__group_id__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/assets/{asset_id}/frames/{group_id}/{filename}': {
     parameters: {
       query?: never
@@ -460,12 +477,12 @@ export interface components {
     }
     /** FrameInput */
     FrameInput: {
-      /** Target Ms */
-      target_ms: number
-      /** Count */
-      count: number
-      /** Spacing Ms */
-      spacing_ms: number
+      /**
+       * Interval Ms
+       * @default 100
+       * @constant
+       */
+      interval_ms: 100
       /**
        * Width
        * @default 1280
@@ -482,8 +499,16 @@ export interface components {
       actual_ms: number
       /** Index */
       index: number
-      /** Is Target */
+      /**
+       * Is Target
+       * @default false
+       */
       is_target: boolean
+      /**
+       * Requested Times Ms
+       * @default []
+       */
+      requested_times_ms: number[]
       /** Width */
       width?: number | null
       /** Height */
@@ -491,8 +516,21 @@ export interface components {
       /** Device Time Ns */
       device_time_ns?: number | null
     }
-    /** GroupOutput */
-    GroupOutput: {
+    /** FramePageOutput */
+    FramePageOutput: {
+      /** Frames */
+      frames: components['schemas']['FrameOutput'][]
+      /** Total */
+      total: number
+      /** Page */
+      page: number
+      /** Page Size */
+      page_size: number
+      /** Page Count */
+      page_count: number
+    }
+    /** FrameSetOutput */
+    FrameSetOutput: {
       /** Id */
       id: string
       /** Asset Id */
@@ -501,23 +539,22 @@ export interface components {
       source_hash: string
       /** Created At */
       created_at: string
+      /** Mode */
+      mode: string
       /** Settings */
       settings: {
-        [key: string]: number
+        [key: string]: unknown
       }
       /** Time Basis */
       time_basis: string
-      /** Frames */
-      frames: components['schemas']['FrameOutput'][]
       /** Schema Version */
       schema_version: number
-      /**
-       * Source Changed
-       * @default false
-       */
+      /** Frame Count */
+      frame_count: number
+      /** Sample Count */
+      sample_count: number
+      /** Source Changed */
       source_changed: boolean
-    } & {
-      [key: string]: unknown
     }
     /** HTTPValidationError */
     HTTPValidationError: {
@@ -565,6 +602,10 @@ export interface components {
       } | null
       /** Error */
       error?: string | null
+      /** Progress */
+      progress?: {
+        [key: string]: unknown
+      } | null
     }
     /** LibraryOutput */
     LibraryOutput: {
@@ -1103,7 +1144,7 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['GroupOutput'][]
+          'application/json': components['schemas']['FrameSetOutput'][]
         }
       }
       /** @description Validation Error */
@@ -1198,7 +1239,42 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['GroupOutput'][]
+          'application/json': components['schemas']['FrameSetOutput'][]
+        }
+      }
+    }
+  }
+  frame_page_api_assets__asset_id__frames__group_id__get: {
+    parameters: {
+      query?: {
+        page?: number
+        page_size?: number
+      }
+      header?: never
+      path: {
+        asset_id: string
+        group_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['FramePageOutput']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
         }
       }
     }
