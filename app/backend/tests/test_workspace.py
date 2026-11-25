@@ -318,3 +318,35 @@ def test_vrs_proxy_adapter_preserves_irregular_timing(client, monkeypatch):
     assert [frame["requested_ms"] for frame in full["frames"]] == [0, 100, 200]
     assert [frame["device_time_ns"] for frame in full["frames"]] == times[:3]
     assert [frame["actual_ms"] for frame in full["frames"]] == [0, 83.333333, 190]
+
+
+def test_annotation_export_selected_recordings(client, video):
+    import shutil
+
+    shutil.copyfile(video, DATA / "second.mp4")
+    shutil.copyfile(video, DATA / "blank.mp4")
+    assets = {a["path"]: a for a in client.post("/api/scan").json()["assets"]}
+    for path, phase in (("sample.mp4", "P1"), ("second.mp4", "P2")):
+        url = f"/api/assets/{assets[path]['id']}/annotation"
+        draft = client.get(url).json()
+        draft["intervals"][0]["phase"] = phase
+        client.put(url, json={"revision": 0, "intervals": draft["intervals"]})
+    listed = client.get("/api/annotations/exportable").json()
+    assert [item["video_id"] for item in listed] == ["sample.mp4", "second.mp4"]
+    assert listed[0]["segment_count"] == 1 and listed[0]["source_status"] == "current"
+
+    second = assets["second.mp4"]["id"]
+    response = client.get(f"/api/annotations/export?format=json&asset_id={second}")
+    assert [r["video_id"] for r in response.json()["records"]] == ["second.mp4"]
+    assert f"annotations_{second}_" in response.headers["content-disposition"]
+    both = "&".join(f"asset_id={assets[p]['id']}" for p in ("sample.mp4", "second.mp4"))
+    response = client.get(f"/api/annotations/export?format=csv&{both}")
+    assert "annotations_2-recordings_" in response.headers["content-disposition"]
+    assert len(list(csv.DictReader(response.content.decode("utf-8-sig").splitlines()))) == 2
+    # A selected recording without a labeled annotation is an error, not silently dropped.
+    blank = assets["blank.mp4"]["id"]
+    assert (
+        client.get(f"/api/annotations/export?format=json&{both}&asset_id={blank}").status_code
+        == 400
+    )
+    assert client.get("/api/annotations/export?format=json&asset_id=missing").status_code == 404

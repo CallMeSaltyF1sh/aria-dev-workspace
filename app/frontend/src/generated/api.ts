@@ -72,6 +72,23 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/annotations/exportable': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Annotation Exportable */
+    get: operations['annotation_exportable_api_annotations_exportable_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/annotations/export': {
     parameters: {
       query?: never
@@ -488,6 +505,24 @@ export interface paths {
 export type webhooks = Record<string, never>
 export interface components {
   schemas: {
+    /** AnnotationExportItem */
+    AnnotationExportItem: {
+      /** Asset Id */
+      asset_id: string
+      /** Video Id */
+      video_id: string
+      /** Saved At */
+      saved_at: string | null
+      /**
+       * Source Status
+       * @enum {string}
+       */
+      source_status: 'current' | 'changed' | 'missing'
+      /** Segment Count */
+      segment_count: number
+      /** Unlabeled Count */
+      unlabeled_count: number
+    }
     /** AnnotationExportSummary */
     AnnotationExportSummary: {
       /** Recording Count */
@@ -1141,11 +1176,31 @@ export interface operations {
       }
     }
   }
+  annotation_exportable_api_annotations_exportable_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['AnnotationExportItem'][]
+        }
+      }
+    }
+  }
   annotation_export_api_annotations_export_get: {
     parameters: {
       query: {
         format: 'csv' | 'json'
-        asset_id?: string | null
+        asset_id?: string[] | null
       }
       header?: never
       path?: never

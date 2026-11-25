@@ -9,9 +9,13 @@ from . import services
 from .storage import LOCK, asset_row, draft_path, read_json, source_path
 
 
-def build(asset_id=None):
+def build(asset_ids=None):
     with LOCK:
-        assets = [asset_row(asset_id)] if asset_id else services.list_assets()
+        assets = (
+            [asset_row(i) for i in dict.fromkeys(asset_ids)]
+            if asset_ids
+            else services.list_assets()
+        )
         records = []
         for asset in assets:
             path = draft_path(asset["id"])
