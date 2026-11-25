@@ -3,7 +3,7 @@
   "name": "DM2350 sliding-window prompt",
   "based_on": null,
   "created_at": "2026-11-24T09:30:00+00:00",
-  "note": "Ported from the DM2350 pilot (pipeline/run_vlm.py --mode slide). Used by every VLM run before prompt versions existed.",
+  "note": "",
   "context": "You are analysing a short clip from an egocentric (first-person) video.\nThe camera wearer is dressing a mannequin with a {garment}.",
   "phases": "P0 No garment action: the hands are not handling the garment, for example touching\n   the mannequin or pausing.\nP1 Acquire garment: reaching for, picking up, or taking control of the garment.\nP2 Orient garment: unfolding, turning, or finding the orientation and openings of\n   the garment.\nP3 Position garment: moving the garment onto the mannequin and placing it.\nP4 Adjust / fasten garment: adjusting or smoothing the garment, or fastening\n   buttons or other closures.\nunclear: the action cannot be identified from the frames.",
   "guidance": "Use the context frames to judge how the hands and the garment are moving,\nbut label only what happens at the TARGET frame.\nBase your answer only on what is visible in the frames."
