@@ -1,11 +1,16 @@
 import os
 import tempfile
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 temporary = tempfile.TemporaryDirectory(prefix="dev-workspace-tests-")
 os.environ["WORKSPACE_ROOT"] = temporary.name
+# Tests save prompt versions; keep them away from the repository's prompts/.
+REPO_PROMPTS = Path(__file__).resolve().parents[3] / "prompts"
+PROMPTS = Path(temporary.name) / "prompts"
+os.environ["PROMPTS_DIR"] = str(PROMPTS)
 
 from devworkspace.main import app  # noqa: E402
 from devworkspace.storage import DATA, WORK  # noqa: E402
@@ -27,6 +32,8 @@ def client():
                 path.unlink()
         for name in ("annotations", "frames"):
             shutil.rmtree(WORK / name, ignore_errors=True)
+        shutil.rmtree(PROMPTS, ignore_errors=True)
+        shutil.copytree(REPO_PROMPTS, PROMPTS)
         yield instance
 
 

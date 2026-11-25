@@ -100,3 +100,45 @@
   font-size: 12px;
   line-height: 1.55;
 }
+.promptLayout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+}
+.promptLayout > nav {
+  flex: 1 1 220px;
+  max-width: 300px;
+}
+.promptLayout > div {
+  flex: 999 1 520px;
+  min-width: 0;
+}
+.versionList {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+}
+.versionList button {
+  width: 100%;
+  border: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px;
+  text-align: left;
+  white-space: normal;
+}
+.versionList button[aria-current='true'] {
+  background: #f0f0f0;
+}
+.promptInput {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #dedede;
+  border-radius: 6px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  resize: vertical;
+}

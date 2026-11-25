@@ -2,7 +2,7 @@
 
 A local workspace for reviewing Project Aria recordings, annotating dressing phases and preparing timestamped frames for VLM experiments.
 
-**Available now:** Data Library, MP4 playback, timeline annotation, full-video frame extraction, CSV/JSON annotation export and import, and a single-recording **VLM Run** (sliding-window phase labels through the AIHubMix API). Prompt Library, multi-recording VLM Tasks and Evaluation are placeholders for later development. No GPU is required; only VLM Run needs an API key.
+**Available now:** Data Library, MP4 playback, timeline annotation, full-video frame extraction, CSV/JSON annotation export and import, and a single-recording **VLM Run** (sliding-window phase labels through the AIHubMix API) with versioned prompts in **Prompt Library**. Multi-recording VLM Tasks and Evaluation are placeholders for later development. No GPU is required; only VLM Run needs an API key.
 
 Each teammate runs their own local instance. Research recordings, frames, annotations, databases and credentials are not included in the repository.
 
@@ -54,6 +54,10 @@ cp .env.example .env.local   # then fill in AIHUBMIX_API_KEY
 
 Restart the launcher after changing it. In a recording's **VLM Run** tab, choose the garment, step and context, then click **Run VLM**. Each target point is labelled by one request carrying the target frame plus context frames from the 0.1 s frame cache (generated automatically if missing). Results are saved to `workspace/vlm/<asset_id>/<run_id>.json` and shown next to the saved human annotation. Running sends frames to the API and is billed to the key's account.
 
+### Prompt versions
+
+The VLM prompt lives in the repository as `prompts/v1.json`, `prompts/v2.json`, …; `v1` is the prompt ported from the DM2350 pilot. In **Prompt Library**, open a version and choose **New version from …** to edit its context, phase definitions and guidance, with a live preview of the full prompt. The description of the frames and the JSON answer format are fixed, so every version uses the same labels and output. Saving writes a new file and never changes an existing one; **commit the new file** so teammates get it. VLM Run uses the newest version unless you pick one, and each run records the version, its hash and its wording, so results stay comparable.
+
 ## 2. Project directories
 
 ```text
@@ -74,6 +78,7 @@ aria-dev-workspace/
 │       ├── tests/                    Isolated backend tests
 │       ├── requirements.lock         Locked Python dependencies
 │       └── .venv/                    Local Python environment
+├── prompts/                          Versioned VLM prompts (v1.json, v2.json, …)
 ├── scripts/
 │   └── dev_workspace.py              Starts/stops the local services
 ├── outputs/                          Project plans and technical documentation

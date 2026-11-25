@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, update
 
-from . import media, services, frame_sets, annotation_exports, annotation_imports, vlm
+from . import media, services, frame_sets, annotation_exports, annotation_imports, prompts, vlm
 from .responses import (
     AssetOutput,
     DeletionOutput,
@@ -24,7 +24,9 @@ from .responses import (
     LibraryOutput,
     AnnotationExportSummary,
     VlmConfigOutput,
-    VlmPromptOutput,
+    PromptOutput,
+    PromptPreview,
+    PromptSummary,
     VlmRunOutput,
     VlmRunSummary,
     AnnotationImportPreview,
@@ -361,6 +363,7 @@ class VlmInput(BaseModel):
     context_ms: Literal[0, 1000, 2000, 4000] = 2000
     width: int = Field(default=640, ge=128, le=1280)
     workers: int = Field(default=8, ge=1, le=16)
+    prompt_id: str | None = None  # None: the newest version in prompts/
 
 
 @app.get("/api/vlm/config", response_model=VlmConfigOutput)
@@ -368,9 +371,37 @@ def vlm_config():
     return vlm.config()
 
 
-@app.get("/api/vlm/prompt", response_model=VlmPromptOutput)
-def vlm_prompt():
-    return vlm.prompt()
+@app.get("/api/prompts", response_model=list[PromptSummary])
+def prompt_list():
+    return prompts.listing()
+
+
+@app.get("/api/prompts/{prompt_id}", response_model=PromptOutput)
+def prompt_detail(prompt_id: str):
+    return prompts.get(prompt_id)
+
+
+class PromptText(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    context: str = Field(max_length=4000)
+    phases: str = Field(max_length=8000)
+    guidance: str = Field(max_length=4000)
+
+
+class PromptInput(PromptText):
+    based_on: str
+    name: str = Field(min_length=1, max_length=120)
+    note: str = Field(default="", max_length=1000)
+
+
+@app.post("/api/prompts/preview", response_model=PromptPreview)
+def prompt_preview(body: PromptText):
+    return prompts.preview(body.model_dump())
+
+
+@app.post("/api/prompts", response_model=PromptOutput)
+def prompt_create(body: PromptInput):
+    return prompts.create(body.model_dump())
 
 
 @app.post("/api/assets/{asset_id}/vlm", response_model=JobOutput)
@@ -379,7 +410,9 @@ def start_vlm(asset_id: str, body: VlmInput):
         raise ValueError("AIHUBMIX_API_KEY is not set. Add it to .env.local and restart.")
     if body.model not in vlm.models():
         raise ValueError("Model is not in VLM_MODELS. Add it to .env.local and restart.")
-    return services.submit_job(asset_id, "vlm", body.model_dump())
+    settings = body.model_dump()
+    settings["prompt_id"] = prompts.get(body.prompt_id or prompts.latest())["id"]
+    return services.submit_job(asset_id, "vlm", settings)
 
 
 @app.get("/api/assets/{asset_id}/vlm", response_model=list[VlmRunSummary])
