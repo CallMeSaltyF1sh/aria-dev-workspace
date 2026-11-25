@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { IconUpload } from '@tabler/icons-react'
+import { IconFileText, IconUpload } from '@tabler/icons-react'
 import { api, type ImportPreview, type ImportResult } from './api'
 import { Modal } from './components'
+import styles from './AnnotationImport.module.css'
 
 const STATUS: Record<ImportPreview['rows'][number]['status'], string> = {
   new: 'Will import',
@@ -22,6 +23,7 @@ export function AnnotationImport() {
   const [result, setResult] = useState<ImportResult | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [dragging, setDragging] = useState(false)
   const form = (chosen: File) => {
     const data = new FormData()
     data.append('file', chosen)
@@ -91,12 +93,52 @@ export function AnnotationImport() {
             matched to recordings in data/ by video content, so filenames may
             differ. Nothing is written until you confirm.
           </p>
-          <input
-            type="file"
-            accept=".json,.csv,application/json,text/csv"
-            disabled={busy}
-            onChange={(e) => void choose(e.target.files?.[0])}
-          />
+          {file ? (
+            <div className={styles.file}>
+              <IconFileText size={20} aria-hidden="true" />
+              <div>
+                <b>{file.name}</b>
+                <span className="small muted">
+                  {(file.size / 1024).toFixed(1)} KB
+                </span>
+              </div>
+              <button disabled={busy} onClick={() => void choose(undefined)}>
+                Choose another file
+              </button>
+            </div>
+          ) : (
+            <label
+              className={[
+                styles.drop,
+                dragging && styles.dragging,
+                busy && styles.disabled,
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              onDragOver={(e) => {
+                e.preventDefault()
+                setDragging(true)
+              }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault()
+                setDragging(false)
+                if (!busy) void choose(e.dataTransfer.files[0])
+              }}
+            >
+              <IconUpload size={22} aria-hidden="true" />
+              <span>
+                <strong>Choose a file</strong> or drag it here
+              </span>
+              <span className="small muted">CSV or JSON, up to 20 MB</span>
+              <input
+                type="file"
+                accept=".json,.csv,application/json,text/csv"
+                disabled={busy}
+                onChange={(e) => void choose(e.target.files?.[0])}
+              />
+            </label>
+          )}
           {busy && !preview && <p>Reading file…</p>}
           {preview && (
             <>
