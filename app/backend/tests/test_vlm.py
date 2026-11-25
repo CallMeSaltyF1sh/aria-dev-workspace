@@ -53,6 +53,8 @@ def test_vlm_run_retries_invalid_output_and_saves(client, video, monkeypatch):
     assert [r["id"] for r in runs] == [job["result"]["id"]]
     run = client.get(f"{url}/{runs[0]['id']}").json()
     assert [w["label"] for w in run["windows"]] == ["P0", "P0", "P1"]
+    assert run["prompt_id"] == "v1" and run["prompt_hash"] == "ad9618fe50c4"
+    assert run["prompt"]["name"] == "DM2350 sliding-window prompt"
     end = run["windows"][-1]["end_ms"]  # Probed duration, not the -t passed to ffmpeg.
     assert run["phases"] == [
         {"label": "P0", "start_ms": 0, "end_ms": 1000},
@@ -123,11 +125,3 @@ def test_call_does_not_wait_after_the_last_attempt(monkeypatch):
     else:
         raise AssertionError("call should fail")
     assert sleeps == [3, 6]
-
-
-def test_prompt_endpoint_matches_what_runs_send(client):
-    value = client.get("/api/vlm/prompt").json()
-    assert value["template"] == vlm.PROMPT
-    assert value["phases"] == vlm.PHASES
-    assert value["hash"] == vlm.PROMPT_HASH
-    assert value["labels"] == ["P0", "P1", "P2", "P3", "P4", "unclear"]

@@ -7,6 +7,7 @@ import {
   type Draft,
   type Job,
   type Library,
+  type PromptSummary,
   type VlmConfig,
   type VlmRun,
   type VlmRunSummary,
@@ -28,6 +29,10 @@ export function VlmPanel({
     queryKey: ['vlm-config'],
     queryFn: () => api<VlmConfig>('/vlm/config'),
   })
+  const promptList = useQuery({
+    queryKey: ['prompts'],
+    queryFn: () => api<PromptSummary[]>('/prompts'),
+  })
   const [settings, setSettings] = useState<VlmSettings>({
     model: '',
     garment: (asset.study.garment as VlmSettings['garment']) || '',
@@ -35,6 +40,7 @@ export function VlmPanel({
     context_ms: 2000,
     width: 640,
     workers: 8,
+    prompt_id: null,
   })
   const [jobId, setJobId] = useState<string | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
@@ -105,6 +111,23 @@ export function VlmPanel({
               >
                 {(config.data?.models || []).map((m) => (
                   <option key={m}>{m}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Prompt
+              <select
+                value={settings.prompt_id || ''}
+                onChange={(e) => set('prompt_id', e.target.value || null)}
+              >
+                <option value="">
+                  Newest
+                  {promptList.data?.[0] ? ` (${promptList.data[0].id})` : ''}
+                </option>
+                {promptList.data?.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.id} · {p.name}
+                  </option>
                 ))}
               </select>
             </label>
@@ -211,7 +234,9 @@ export function VlmPanel({
                 {runs.data.map((r) => (
                   <option key={r.id} value={r.id}>
                     {new Date(r.created_at).toLocaleString()} ·{' '}
-                    {String(r.settings.model)} · {r.counts.valid} valid
+                    {String(r.settings.model)} ·{' '}
+                    {String(r.settings.prompt_id ?? 'v1')} · {r.counts.valid}{' '}
+                    valid
                   </option>
                 ))}
               </select>
@@ -286,7 +311,7 @@ function RunResult({
         garment {String(value.settings.garment)} · step{' '}
         {Number(value.settings.step_ms) / 1000}s · context ±
         {Number(value.settings.context_ms) / 1000}s{' · prompt '}
-        {value.prompt_hash}
+        {value.prompt_id ?? 'v1'} ({value.prompt_hash})
         {scored.length > 0 &&
           ` · agrees with saved annotation on ${agree}/${scored.length} target points (${Math.round((agree / scored.length) * 100)}%)`}
       </p>

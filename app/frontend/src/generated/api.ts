@@ -381,17 +381,52 @@ export interface paths {
     patch?: never
     trace?: never
   }
-  '/api/vlm/prompt': {
+  '/api/prompts': {
     parameters: {
       query?: never
       header?: never
       path?: never
       cookie?: never
     }
-    /** Vlm Prompt */
-    get: operations['vlm_prompt_api_vlm_prompt_get']
+    /** Prompt List */
+    get: operations['prompt_list_api_prompts_get']
+    put?: never
+    /** Prompt Create */
+    post: operations['prompt_create_api_prompts_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/prompts/{prompt_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Prompt Detail */
+    get: operations['prompt_detail_api_prompts__prompt_id__get']
     put?: never
     post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/prompts/preview': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Prompt Preview */
+    post: operations['prompt_preview_api_prompts_preview_post']
     delete?: never
     options?: never
     head?: never
@@ -844,6 +879,82 @@ export interface components {
       /** Color */
       color: string
     }
+    /** PromptInput */
+    PromptInput: {
+      /** Context */
+      context: string
+      /** Phases */
+      phases: string
+      /** Guidance */
+      guidance: string
+      /** Based On */
+      based_on: string
+      /** Name */
+      name: string
+      /**
+       * Note
+       * @default
+       */
+      note: string
+    }
+    /** PromptOutput */
+    PromptOutput: {
+      /** Hash */
+      hash: string
+      /** Example */
+      example: string
+      /** Id */
+      id: string
+      /** Name */
+      name: string
+      /** Based On */
+      based_on: string | null
+      /** Created At */
+      created_at: string
+      /** Note */
+      note: string
+      /** Context */
+      context: string
+      /** Phases */
+      phases: string
+      /** Guidance */
+      guidance: string
+      /** Template */
+      template: string
+      /** File */
+      file: string
+    }
+    /** PromptPreview */
+    PromptPreview: {
+      /** Hash */
+      hash: string
+      /** Example */
+      example: string
+    }
+    /** PromptSummary */
+    PromptSummary: {
+      /** Id */
+      id: string
+      /** Name */
+      name: string
+      /** Based On */
+      based_on: string | null
+      /** Created At */
+      created_at: string
+      /** Note */
+      note: string
+      /** Hash */
+      hash: string
+    }
+    /** PromptText */
+    PromptText: {
+      /** Context */
+      context: string
+      /** Phases */
+      phases: string
+      /** Guidance */
+      guidance: string
+    }
     /** StudyInput */
     StudyInput: {
       /**
@@ -938,6 +1049,8 @@ export interface components {
        * @default 8
        */
       workers: number
+      /** Prompt Id */
+      prompt_id?: string | null
     }
     /** VlmPhaseOutput */
     VlmPhaseOutput: {
@@ -947,23 +1060,6 @@ export interface components {
       start_ms: number
       /** End Ms */
       end_ms: number
-    }
-    /** VlmPromptOutput */
-    VlmPromptOutput: {
-      /** Mode */
-      mode: string
-      /** Source */
-      source: string
-      /** Template */
-      template: string
-      /** Phases */
-      phases: string
-      /** Labels */
-      labels: string[]
-      /** Hash */
-      hash: string
-      /** File */
-      file: string
     }
     /** VlmRunOutput */
     VlmRunOutput: {
@@ -993,6 +1089,12 @@ export interface components {
       api_url: string
       /** Prompt Hash */
       prompt_hash: string
+      /** Prompt Id */
+      prompt_id?: string | null
+      /** Prompt */
+      prompt?: {
+        [key: string]: string
+      } | null
       /** Windows */
       windows: components['schemas']['VlmWindowOutput'][]
       /** Phases */
@@ -1803,7 +1905,7 @@ export interface operations {
       }
     }
   }
-  vlm_prompt_api_vlm_prompt_get: {
+  prompt_list_api_prompts_get: {
     parameters: {
       query?: never
       header?: never
@@ -1818,7 +1920,104 @@ export interface operations {
           [name: string]: unknown
         }
         content: {
-          'application/json': components['schemas']['VlmPromptOutput']
+          'application/json': components['schemas']['PromptSummary'][]
+        }
+      }
+    }
+  }
+  prompt_create_api_prompts_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PromptInput']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['PromptOutput']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  prompt_detail_api_prompts__prompt_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        prompt_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['PromptOutput']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  prompt_preview_api_prompts_preview_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PromptText']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['PromptPreview']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
         }
       }
     }

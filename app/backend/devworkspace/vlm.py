@@ -5,7 +5,6 @@ independent request that carries the target frame plus context frames on both si
 """
 
 import base64
-import hashlib
 import io
 import json
 import os
@@ -21,42 +20,14 @@ from datetime import UTC, datetime
 from dotenv import load_dotenv
 from PIL import Image
 
-from . import frame_sets
+from . import frame_sets, prompts
 from .storage import ROOT, WORK, atomic_json, read_json
 
 # .env.local wins over the shell, so the project key is used even if one is exported.
 load_dotenv(ROOT / ".env.local", override=True)
 API_URL = os.environ.get("VLM_API_URL", "https://aihubmix.com/v1/chat/completions")
-LABELS = ["P0", "P1", "P2", "P3", "P4", "unclear"]
+LABELS = prompts.LABELS
 FRAME_CACHE_WIDTH = 1280  # Same cache the Frames & QC tab generates.
-
-PHASES = """P0 No garment action: the hands are not handling the garment, for example touching
-   the mannequin or pausing.
-P1 Acquire garment: reaching for, picking up, or taking control of the garment.
-P2 Orient garment: unfolding, turning, or finding the orientation and openings of
-   the garment.
-P3 Position garment: moving the garment onto the mannequin and placing it.
-P4 Adjust / fasten garment: adjusting or smoothing the garment, or fastening
-   buttons or other closures.
-unclear: the action cannot be identified from the frames."""
-
-PROMPT = """You are analysing a short clip from an egocentric (first-person) video.
-The camera wearer is dressing a mannequin with a {garment}.
-The clip is shown as {n} frames in time order, one every {step:g} s. Each frame is preceded
-by its timestamp. The frame marked [TARGET] is at t={target:.2f} s; the other frames are
-context only.
-
-Classify the action at the TARGET frame into exactly one phase:
-{phases}
-
-Use the context frames to judge how the hands and the garment are moving,
-but label only what happens at the TARGET frame.
-Base your answer only on what is visible in the frames.
-
-Return only a JSON object in this format:
-{{"label": "P0" | "P1" | "P2" | "P3" | "P4" | "unclear",
- "reason": "<one short sentence describing the visible action at the TARGET frame>"}}"""
-PROMPT_HASH = hashlib.sha256((PROMPT + PHASES).encode()).hexdigest()[:12]
 
 
 def api_key():
@@ -71,18 +42,6 @@ def models():
     """
     listed = [m.strip() for m in os.environ.get("VLM_MODELS", "").split(",") if m.strip()]
     return list(dict.fromkeys(listed)) or ["qwen3-vl-plus"]
-
-
-def prompt():
-    return {
-        "mode": "slide",
-        "source": "DM2350 pilot, pipeline/run_vlm.py --mode slide",
-        "template": PROMPT,
-        "phases": PHASES,
-        "labels": LABELS,
-        "hash": PROMPT_HASH,
-        "file": "app/backend/devworkspace/vlm.py",
-    }
 
 
 def config():
@@ -182,6 +141,7 @@ def run(asset, settings, progress=lambda *_: None):
     garment = settings["garment"] or asset["study"].get("garment")
     if garment not in {"shirt", "jacket"}:
         raise ValueError("Choose the garment, or set it in Metadata.")
+    prompt = prompts.get(settings["prompt_id"])
     group = frame_sets.generate(asset, {"width": FRAME_CACHE_WIDTH}, progress)
     folder = WORK / "frames" / asset["id"] / group["id"]
     by_time = {t: frame for frame in group["frames"] for t in frame["requested_times_ms"]}
@@ -204,12 +164,12 @@ def run(asset, settings, progress=lambda *_: None):
         content = [
             {
                 "type": "text",
-                "text": PROMPT.format(
+                "text": prompts.render(
+                    prompt,
                     garment=garment,
                     n=len(frames),
                     step=settings["step_ms"] / 1000,
                     target=target["actual_ms"] / 1000,
-                    phases=PHASES,
                 ),
             }
         ]
@@ -272,7 +232,10 @@ def run(asset, settings, progress=lambda *_: None):
         "mode": "slide",
         "api_url": API_URL,
         "settings": {**settings, "garment": garment},
-        "prompt_hash": PROMPT_HASH,
+        "prompt_id": prompt["id"],
+        "prompt_hash": prompt["hash"],
+        # The wording itself, so the run stays readable even if prompts/ changes.
+        "prompt": {key: prompt[key] for key in ("name", *prompts.EDITABLE)},
         "seconds": round(time.time() - started, 1),
         "counts": counts,
         "windows": windows,

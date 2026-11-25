@@ -140,13 +140,25 @@ class VlmConfigOutput(BaseModel):
     models: list[str]
 
 
-class VlmPromptOutput(BaseModel):
-    mode: str
-    source: str
-    template: str
-    phases: str
-    labels: list[str]
+class PromptSummary(BaseModel):
+    id: str
+    name: str
+    based_on: str | None
+    created_at: str
+    note: str
     hash: str
+
+
+class PromptPreview(BaseModel):
+    hash: str
+    example: str
+
+
+class PromptOutput(PromptSummary, PromptPreview):
+    context: str
+    phases: str
+    guidance: str
+    template: str
     file: str
 
 
@@ -184,6 +196,8 @@ class VlmRunOutput(VlmRunSummary):
     mode: str
     api_url: str
     prompt_hash: str
+    prompt_id: str | None = None  # Runs before prompt versions only have the hash (v1's).
+    prompt: dict[str, str] | None = None
     windows: list[VlmWindowOutput]
     phases: list[VlmPhaseOutput]
 
