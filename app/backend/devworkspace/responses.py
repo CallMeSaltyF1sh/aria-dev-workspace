@@ -179,6 +179,13 @@ class VlmRunSummary(BaseModel):
     counts: dict[str, int]
 
 
+class VlmRunListItem(VlmRunSummary):
+    asset_id: str
+    video_id: str
+    prompt_id: str
+    prompt_hash: str
+
+
 class VlmWindowOutput(BaseModel):
     start_ms: int
     end_ms: int

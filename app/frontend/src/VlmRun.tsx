@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   api,
@@ -25,6 +26,7 @@ export function VlmPanel({
   phases: Library['phases']
 }) {
   const client = useQueryClient()
+  const [params] = useSearchParams()
   const config = useQuery({
     queryKey: ['vlm-config'],
     queryFn: () => api<VlmConfig>('/vlm/config'),
@@ -43,7 +45,8 @@ export function VlmPanel({
     prompt_id: null,
   })
   const [jobId, setJobId] = useState<string | null>(null)
-  const [selected, setSelected] = useState<string | null>(null)
+  // ?run=<id> opens that run, e.g. when coming from VLM Tasks.
+  const [selected, setSelected] = useState<string | null>(params.get('run'))
   const [error, setError] = useState('')
   const runs = useQuery({
     queryKey: ['vlm-runs', asset.id],
@@ -64,13 +67,17 @@ export function VlmPanel({
         : false,
   })
   useEffect(() => {
-    if (job.data?.status === 'completed') {
+    // Show a run when one started here finishes; otherwise keep the run from the URL.
+    if (jobId && job.data?.status === 'completed') {
       void client.invalidateQueries({ queryKey: ['vlm-runs', asset.id] })
       setSelected(String(job.data.result?.id))
     }
-  }, [job.data?.status, job.data?.result?.id, client, asset.id])
+  }, [jobId, job.data?.status, job.data?.result?.id, client, asset.id])
   const running = ['queued', 'running'].includes(job.data?.status || '')
-  const runId = selected || runs.data?.[0]?.id
+  // A ?run= left over from another recording falls back to the newest run here.
+  const runId =
+    (selected && runs.data?.some((r) => r.id === selected) ? selected : null) ||
+    runs.data?.[0]?.id
   const progress = job.data?.progress
   // Until a model is picked, use the first one listed in VLM_MODELS.
   const model = settings.model || config.data?.models[0] || ''
@@ -278,10 +285,6 @@ function RunResult({
   const human = (ms: number) =>
     draft.intervals.find((i) => ms >= i.start_ms && ms < i.end_ms)?.phase ??
     null
-  const scored = value.windows.filter(
-    (w) => w.status === 'valid' && human(w.target_ms),
-  )
-  const agree = scored.filter((w) => w.label === human(w.target_ms)).length
   const color = (label: string | null) =>
     (label && phases[label as keyof typeof phases]?.color) || '#fff'
   const track = (
@@ -312,8 +315,6 @@ function RunResult({
         {Number(value.settings.step_ms) / 1000}s · context ±
         {Number(value.settings.context_ms) / 1000}s{' · prompt '}
         {value.prompt_id ?? 'v1'} ({value.prompt_hash})
-        {scored.length > 0 &&
-          ` · agrees with saved annotation on ${agree}/${scored.length} target points (${Math.round((agree / scored.length) * 100)}%)`}
       </p>
       <div>
         <span className="small muted">Human annotation</span>

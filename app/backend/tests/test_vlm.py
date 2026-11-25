@@ -125,3 +125,22 @@ def test_call_does_not_wait_after_the_last_attempt(monkeypatch):
     else:
         raise AssertionError("call should fail")
     assert sleeps == [3, 6]
+
+
+def test_all_runs_lists_runs_from_every_recording(client, video, monkeypatch):
+    import shutil
+
+    shutil.copyfile(video, video.with_name("second.mp4"))
+    assets = client.post("/api/scan").json()["assets"]
+    monkeypatch.setattr(vlm, "api_key", lambda: "test")
+    monkeypatch.setattr(
+        vlm, "call", lambda model, content: json.dumps({"label": "P0", "reason": "r"})
+    )
+    body = {"garment": "shirt", "step_ms": 1000, "context_ms": 0, "workers": 1}
+    for asset in assets:
+        job = wait(client, client.post(f"/api/assets/{asset['id']}/vlm", json=body).json())
+        assert job["status"] == "completed", job
+    items = client.get("/api/vlm/runs").json()
+    assert [i["video_id"] for i in items] == ["second.mp4", "sample.mp4"]  # Newest first.
+    assert all(i["prompt_id"] == "v1" and i["counts"]["valid"] == 2 for i in items)
+    assert "agreement" not in items[0]

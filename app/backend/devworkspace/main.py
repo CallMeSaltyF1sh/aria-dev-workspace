@@ -30,6 +30,7 @@ from .responses import (
     PromptSummary,
     VlmRunOutput,
     VlmRunSummary,
+    VlmRunListItem,
     AnnotationImportPreview,
     AnnotationImportResult,
 )
@@ -435,6 +436,11 @@ def start_vlm(asset_id: str, body: VlmInput):
     settings = body.model_dump()
     settings["prompt_id"] = prompts.get(body.prompt_id or prompts.latest())["id"]
     return services.submit_job(asset_id, "vlm", settings)
+
+
+@app.get("/api/vlm/runs", response_model=list[VlmRunListItem])
+def vlm_all_runs():
+    return vlm.all_runs(services.list_assets())
 
 
 @app.get("/api/assets/{asset_id}/vlm", response_model=list[VlmRunSummary])

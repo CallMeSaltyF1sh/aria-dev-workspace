@@ -22,6 +22,7 @@ export type PromptPreview = components['schemas']['PromptPreview']
 export type PromptInput = components['schemas']['PromptInput']
 export type VlmSettings = components['schemas']['VlmInput']
 export type VlmRunSummary = components['schemas']['VlmRunSummary']
+export type VlmRunListItem = components['schemas']['VlmRunListItem']
 export type VlmRun = components['schemas']['VlmRunOutput']
 
 export async function api<T>(

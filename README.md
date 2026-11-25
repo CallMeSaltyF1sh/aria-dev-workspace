@@ -2,7 +2,7 @@
 
 A local workspace for reviewing Project Aria recordings, annotating dressing phases and preparing timestamped frames for VLM experiments.
 
-**Available now:** Data Library, MP4 playback, timeline annotation, full-video frame extraction, CSV/JSON annotation export and import, and a single-recording **VLM Run** (sliding-window phase labels through the AIHubMix API) with versioned prompts in **Prompt Library**. Multi-recording VLM Tasks and Evaluation are placeholders for later development. No GPU is required; only VLM Run needs an API key.
+**Available now:** Data Library, MP4 playback, timeline annotation, full-video frame extraction, CSV/JSON annotation export and import, and a single-recording **VLM Run** (sliding-window phase labels through the AIHubMix API) with versioned prompts in **Prompt Library**; **VLM Tasks** lists every run across recordings and opens each one in its recording. Running several recordings at once and Evaluation are placeholders for later development. No GPU is required; only VLM Run needs an API key.
 
 Each teammate runs their own local instance. Research recordings, frames, annotations, databases and credentials are not included in the repository.
 
@@ -56,7 +56,7 @@ Restart the launcher after changing it. In a recording's **VLM Run** tab, choose
 
 ### Prompt versions
 
-The VLM prompt lives in the repository as `prompts/v1.json`, `prompts/v2.json`, …; `v1` is the prompt ported from the DM2350 pilot. In **Prompt Library**, open a version and choose **New version from …** to edit its context, phase definitions and guidance, with a live preview of the full prompt. The description of the frames and the JSON answer format are fixed, so every version uses the same labels and output. Saving writes a new file and never changes an existing one; **commit the new file** so teammates get it. VLM Run uses the newest version unless you pick one, and each run records the version, its hash and its wording, so results stay comparable.
+The VLM prompt lives in the repository as `prompts/v1.json`, `prompts/v2.json`, …; `v1` is the prompt ported from the DM2350 pilot. In **Prompt Library**, open a version and choose **New version from …** to edit its context, phase definitions and guidance, with a live preview of the full prompt. The description of the frames and the JSON answer format are fixed, so every version uses the same labels and output. Saving writes a new file and never changes an existing one; **commit the new file** so teammates get it. VLM Run uses the newest version unless you pick one, and each run records the version, its hash and its wording, so results stay comparable. **VLM Tasks** lists every run with its recording, prompt version, setup and how many targets were answered; click a run to open it in that recording's VLM Run tab. Comparing results with annotations belongs to Evaluation (planned).
 
 ## 2. Project directories
 

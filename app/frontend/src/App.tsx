@@ -12,6 +12,7 @@ import { api, type Library } from './api'
 import { LibraryPage } from './Library'
 import { DetailPage } from './Detail'
 import { PromptPage } from './PromptLibrary'
+import { TasksPage } from './VlmTasks'
 import styles from './App.module.css'
 
 export function App() {
@@ -95,6 +96,8 @@ export function App() {
             <LibraryPage library={library.data} scan={scan} />
           ) : location.pathname.startsWith('/prompts') ? (
             <PromptPage />
+          ) : location.pathname.startsWith('/tasks') ? (
+            <TasksPage />
           ) : (
             <>
               <h1>

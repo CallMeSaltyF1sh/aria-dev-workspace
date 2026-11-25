@@ -255,6 +255,25 @@ def runs(asset_id):
     return sorted(values, key=lambda value: value["created_at"], reverse=True)
 
 
+def all_runs(assets):
+    """Every saved run across recordings, newest first."""
+    values = []
+    for asset in assets:
+        for path in (WORK / "vlm" / asset["id"]).glob("*.json"):
+            run = read_json(path)
+            values.append(
+                summary(run)
+                | {
+                    "asset_id": asset["id"],
+                    "video_id": asset["path"],
+                    # Runs saved before prompt versions all used v1's wording.
+                    "prompt_id": run.get("prompt_id", "v1"),
+                    "prompt_hash": run["prompt_hash"],
+                }
+            )
+    return sorted(values, key=lambda value: value["created_at"], reverse=True)
+
+
 def get(asset_id, run_id):
     if not re.fullmatch(r"[0-9TZ]{16}-[a-f0-9]{6}", run_id):
         raise FileNotFoundError("VLM run not found.")

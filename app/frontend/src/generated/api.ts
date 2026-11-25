@@ -468,6 +468,23 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/vlm/runs': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Vlm All Runs */
+    get: operations['vlm_all_runs_api_vlm_runs_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/assets/{asset_id}/vlm/{run_id}': {
     parameters: {
       query?: never
@@ -1095,6 +1112,31 @@ export interface components {
       start_ms: number
       /** End Ms */
       end_ms: number
+    }
+    /** VlmRunListItem */
+    VlmRunListItem: {
+      /** Id */
+      id: string
+      /** Created At */
+      created_at: string
+      /** Settings */
+      settings: {
+        [key: string]: unknown
+      }
+      /** Seconds */
+      seconds: number
+      /** Counts */
+      counts: {
+        [key: string]: number
+      }
+      /** Asset Id */
+      asset_id: string
+      /** Video Id */
+      video_id: string
+      /** Prompt Id */
+      prompt_id: string
+      /** Prompt Hash */
+      prompt_hash: string
     }
     /** VlmRunOutput */
     VlmRunOutput: {
@@ -2139,6 +2181,26 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  vlm_all_runs_api_vlm_runs_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['VlmRunListItem'][]
         }
       }
     }
