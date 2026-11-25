@@ -165,7 +165,7 @@ MP4 playback and extraction are verified. VRS requires a usable RGB stream; brow
 ## 6. Export annotations for teammates
 
 - **One recording:** save changes, then choose **Annotation → Export → CSV / JSON**.
-- **All annotated recordings:** choose **Data Library → Export annotations → CSV / JSON**. This includes all folders, independent of the current filters or selection.
+- **Several recordings:** choose **Data Library → Export annotations**. The dialog lists every annotated recording in all folders (independent of the library's filters), all ticked; untick any you do not want, then choose **CSV / JSON**. The selected recordings go into one file, one record per recording.
 - Only saved drafts with at least one valid phase label are included. Partially labeled recordings retain their unclassified intervals: JSON uses `null`; CSV leaves the phase blank. The preview shows recording, interval and unclassified counts.
 - Exports include relative video identifiers, source hashes, timing and annotation versions, allowing teammates to identify the matching source recordings. Changed/missing sources are flagged. They do not include video, frames, study metadata or absolute machine paths; exported filenames/content are not automatically anonymized.
 

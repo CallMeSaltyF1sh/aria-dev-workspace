@@ -23,6 +23,7 @@ from .responses import (
     JobOutput,
     LibraryOutput,
     AnnotationExportSummary,
+    AnnotationExportItem,
     VlmConfigOutput,
     PromptOutput,
     PromptPreview,
@@ -105,14 +106,35 @@ def scan():
 
 @app.get("/api/annotations/export-summary", response_model=AnnotationExportSummary)
 def annotation_export_summary(asset_id: str | None = None):
-    return annotation_exports.build(asset_id)["counts"]
+    return annotation_exports.build([asset_id] if asset_id else None)["counts"]
+
+
+@app.get("/api/annotations/exportable", response_model=list[AnnotationExportItem])
+def annotation_exportable():
+    return [
+        {key: record[key] for key in ("asset_id", "video_id", "saved_at", "source_status")}
+        | {
+            "segment_count": len(record["intervals"]),
+            "unlabeled_count": sum(i["phase"] is None for i in record["intervals"]),
+        }
+        for record in annotation_exports.build()["records"]
+    ]
 
 
 @app.get("/api/annotations/export")
-def annotation_export(format: Literal["csv", "json"], asset_id: str | None = None):
+def annotation_export(format: Literal["csv", "json"], asset_id: list[str] | None = Query(None)):
     value = annotation_exports.build(asset_id)
+    if asset_id and len(value["records"]) < len(set(asset_id)):
+        raise ValueError("Some selected recordings have no saved labeled annotation.")
     content = annotation_exports.render(value, format)
-    filename = f"annotations_{asset_id or 'all'}_{value['exported_at'][:10]}.{format}"
+    name = (
+        "all"
+        if not asset_id
+        else asset_id[0]
+        if len(set(asset_id)) == 1
+        else (f"{len(set(asset_id))}-recordings")
+    )
+    filename = f"annotations_{name}_{value['exported_at'][:10]}.{format}"
     return Response(
         content,
         media_type="text/csv" if format == "csv" else "application/json",

@@ -1,0 +1,69 @@
+.drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 12px;
+  padding: 22px 16px;
+  border: 1px dashed #c8c8c8;
+  border-radius: 8px;
+  background: #fafafa;
+  color: #525252;
+  font-size: 13px;
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.drop:hover,
+.dragging {
+  border-color: #171717;
+  background: #f4f4f4;
+}
+.drop:focus-within {
+  outline: 2px solid #171717;
+  outline-offset: 2px;
+}
+.disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+.drop strong {
+  color: #171717;
+  font-weight: 600;
+}
+/* Keep the native input for keyboard and screen readers, but draw the zone instead. */
+.drop input[type='file'] {
+  position: absolute;
+  width: 1px;
+  min-width: 0;
+  height: 1px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+.file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+.file > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.file b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

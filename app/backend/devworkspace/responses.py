@@ -126,6 +126,15 @@ class DeletionOutput(BaseModel):
     frame_groups: int
 
 
+class AnnotationExportItem(BaseModel):
+    asset_id: str
+    video_id: str
+    saved_at: str | None
+    source_status: Literal["current", "changed", "missing"]
+    segment_count: int
+    unlabeled_count: int
+
+
 class AnnotationExportSummary(BaseModel):
     recording_count: int
     segment_count: int
