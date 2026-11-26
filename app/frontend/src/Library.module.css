@@ -5,31 +5,101 @@
   align-items: start;
 }
 .layout .folderHeader {
-  height: 48px;
-  min-height: 48px;
-  padding-block: 0;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 8px 0 15px;
+}
+.folderList {
+  padding: 5px 0 6px;
 }
 .folder {
   display: flex;
   align-items: center;
-  padding: 8px;
-  gap: 3px;
+  gap: 1px;
+  padding: 0 6px;
 }
 .folder > button:first-child {
   border: 0;
   flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 30px;
+  padding: 0 9px;
+  gap: 8px;
   justify-content: space-between;
-  overflow: hidden;
-  text-overflow: ellipsis;
   background: transparent;
+  border-radius: 5px;
+  color: #404040;
   text-align: left;
 }
-.folder > button.chosen {
-  background: #eee;
+.folder > button:first-child:hover {
+  background: #f4f4f4;
+}
+.folder > button.chosen,
+.folder > button.chosen:hover {
+  background: #ededed;
+  color: #171717;
   font-weight: 600;
 }
+.folderName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.folder > .iconButton {
+  min-height: 0;
+  height: 26px;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: #a3a3a3;
+}
 .folder small {
-  color: #888;
+  color: #9c9c9c;
+  font-size: 11px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+.vrsPeer {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 9px;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 5px;
+  color: #404040;
+  text-decoration: none;
+}
+.vrsPeer:hover {
+  background: #f4f4f4;
+  text-decoration: none;
+}
+.vrsLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.vrsArrow {
+  color: #9c9c9c;
+  flex-shrink: 0;
+  transition:
+    color 0.12s ease,
+    transform 0.12s ease;
+}
+.vrsPeer:hover .vrsArrow {
+  color: #404040;
+  transform: translate(1px, -1px);
+}
+.emptyVrsLink {
+  display: inline-block;
+  margin-top: 8px;
+  color: #171717;
+  font-size: 12px;
+  font-weight: 500;
 }
 .filters {
   display: flex;
@@ -72,6 +142,16 @@
   overflow: auto;
   padding-left: 20px;
   font-size: 11px;
+}
+.badgeMissing {
+  color: #9a6700;
+  background: #fff8eb;
+  border-color: #f3d79b;
+}
+.badgeError {
+  color: #a8211a;
+  background: #fff2f0;
+  border-color: #f4d1cc;
 }
 @media (max-width: 1000px) {
   .layout {

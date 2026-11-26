@@ -7,7 +7,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 
-from sqlalchemy import insert, select, update
+from sqlalchemy import delete, insert, select, update
 
 from . import media, frame_sets, vlm
 from .storage import (
@@ -48,9 +48,30 @@ def require_current_source(asset):
     return path
 
 
+def vlm_runs_count(asset_id):
+    return sum(1 for _ in (WORK / "vlm" / asset_id).glob("*.json"))
+
+
+def has_saved_work(asset_id):
+    return draft_path(asset_id).exists() or vlm_runs_count(asset_id) > 0
+
+
+def purge_asset(connection, asset_id):
+    connection.execute(delete(jobs).where(jobs.c.asset_id == asset_id))
+    connection.execute(delete(assets).where(assets.c.id == asset_id))
+    for folder in ("annotations", "frames", "vlm", "previews"):
+        shutil.rmtree(WORK / folder / asset_id, ignore_errors=True)
+
+
 def scan():
     with LOCK, engine.begin() as connection:
         previous = [dict(row) for row in connection.execute(select(assets)).mappings()]
+        active_ids = {
+            row[0]
+            for row in connection.execute(
+                select(jobs.c.asset_id).where(jobs.c.status.in_(["queued", "running"]))
+            )
+        }
         paths = {row["path"]: row for row in previous}
         seen = set()
         for directory, folders, filenames in os.walk(DATA, followlinks=False):
@@ -65,7 +86,7 @@ def scan():
                 if os.path.islink(candidate):
                     continue
                 path = source_path(os.path.relpath(candidate, DATA))
-                if path.suffix.lower() not in {".mp4", ".vrs"}:
+                if path.suffix.lower() != ".mp4":
                     continue
                 relative = path.relative_to(DATA).as_posix()
                 stat = path.stat()
@@ -90,18 +111,25 @@ def scan():
                             update(assets).where(assets.c.id == row["id"]).values(path=relative)
                         )
                     continue
-                asset_id = row["id"] if row else str(uuid.uuid4())
-                seen.add(asset_id)
                 try:
-                    info = (
-                        media.inspect_vrs(path)
-                        if path.suffix.lower() == ".vrs"
-                        else media.probe(path)
-                    )
+                    info = media.probe(path)
                     file_hash = digest(path)
                 except Exception as error:
                     info = {"status": "error", "error": str(error)}
                     file_hash = digest(path)
+                if row is None:
+                    row = next(
+                        (
+                            old
+                            for old in previous
+                            if old["hash"] == file_hash
+                            and old["id"] not in seen
+                            and not source_path(old["path"]).exists()
+                        ),
+                        None,
+                    )
+                asset_id = row["id"] if row else str(uuid.uuid4())
+                seen.add(asset_id)
                 values = dict(
                     path=relative,
                     fingerprint=fingerprint,
@@ -118,7 +146,12 @@ def scan():
                     connection.execute(insert(assets).values(id=asset_id, study={}, **values))
         for old in previous:
             if old["id"] not in seen:
-                connection.execute(update(assets).where(assets.c.id == old["id"]).values(missing=1))
+                if old["id"] in active_ids or has_saved_work(old["id"]):
+                    connection.execute(
+                        update(assets).where(assets.c.id == old["id"]).values(missing=1)
+                    )
+                else:
+                    purge_asset(connection, old["id"])
     return list_assets()
 
 
@@ -173,21 +206,29 @@ def deletion_preview(ids=None, directory=None):
         if any(item.is_symlink() for item in path.rglob("*")):
             raise ValueError("Remove symbolic links before deleting this folder.")
         rows = [row for row in list_assets() if source_path(row["path"]).is_relative_to(path)]
+        missing_rows = [row for row in rows if not source_path(row["path"]).exists()]
     else:
         rows = [asset_row(asset_id) for asset_id in dict.fromkeys(ids or [])]
-        paths = [source_path(row["path"], exists=True) for row in rows]
+        if not rows:
+            raise ValueError("Select at least one recording.")
+        live_rows = [row for row in rows if source_path(row["path"]).exists()]
+        missing_rows = [row for row in rows if not source_path(row["path"]).exists()]
+        paths = [source_path(row["path"], exists=True) for row in live_rows]
     ensure_idle([row["id"] for row in rows])
     files = sorted({item.relative_to(DATA).as_posix() for item in paths})
+    records = sorted(row["path"] for row in missing_rows)
     stamps = [
-        (item.relative_to(DATA).as_posix(), item.stat().st_size, item.stat().st_mtime_ns)
+        ("file", item.relative_to(DATA).as_posix(), item.stat().st_size, item.stat().st_mtime_ns)
         for item in paths
-    ]
+    ] + [("missing", row["id"], row["path"]) for row in missing_rows]
     token = hashlib.sha256(json.dumps(sorted(stamps)).encode()).hexdigest()
     return {
         "files": files,
+        "records": records,
         "token": token,
         "annotations": sum(draft_path(row["id"]).exists() for row in rows),
         "frame_groups": sum(len(frame_groups(row["id"])) for row in rows),
+        "vlm_runs": sum(vlm_runs_count(row["id"]) for row in rows),
     }
 
 
@@ -197,10 +238,26 @@ def delete_files(ids, directory, token):
         if preview["token"] != token:
             raise ValueError("Files changed since confirmation. Review the deletion again.")
         if directory is not None:
-            shutil.rmtree(source_path(directory, exists=True))
+            target_dir = source_path(directory, exists=True)
+            missing_ids = [
+                row["id"]
+                for row in list_assets()
+                if source_path(row["path"]).is_relative_to(target_dir)
+                and not source_path(row["path"]).exists()
+            ]
+            shutil.rmtree(target_dir)
         else:
+            missing_ids = [
+                asset_id
+                for asset_id in dict.fromkeys(ids or [])
+                if not source_path(asset_row(asset_id)["path"]).exists()
+            ]
             for relative in preview["files"]:
                 source_path(relative, exists=True).unlink()
+        if missing_ids:
+            with engine.begin() as connection:
+                for asset_id in missing_ids:
+                    purge_asset(connection, asset_id)
         return scan()
 
 

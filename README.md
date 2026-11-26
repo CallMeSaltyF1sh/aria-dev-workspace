@@ -2,7 +2,7 @@
 
 A local workspace for reviewing Project Aria recordings, annotating dressing phases and preparing timestamped frames for VLM experiments.
 
-**Available now:** Data Library, MP4 playback, timeline annotation, full-video frame extraction, CSV/JSON annotation export and import, and a single-recording **VLM Run** (sliding-window phase labels through the AIHubMix API) with versioned prompts in **Prompt Library**; **VLM Tasks** lists every run across recordings and opens each one in its recording. Running several recordings at once and Evaluation are placeholders for later development. No GPU is required; only VLM Run needs an API key.
+**Available now:** Data Library, MP4 playback, timeline annotation, full-video frame extraction, CSV/JSON annotation export and import, **VRS → MP4** conversion (with optional audio, eye-gaze and hand-tracking data), and a single-recording **VLM Run** (sliding-window phase labels through the AIHubMix API) with versioned prompts in **Prompt Library**; **VLM Tasks** lists every run across recordings and opens each one in its recording. Running several recordings at once and Evaluation are placeholders for later development. No GPU is required; only VLM Run needs an API key.
 
 Each teammate runs their own local instance. Research recordings, frames, annotations, databases and credentials are not included in the repository.
 
@@ -93,7 +93,8 @@ aria-dev-workspace/
 │   └── dev_workspace.py              Starts/stops the local services
 ├── outputs/                          Project plans and technical documentation
 ├── .superdesign/                     Design references; not needed to run the app
-├── data/                             LOCAL ONLY: original MP4/VRS recordings
+├── data/                             LOCAL ONLY: MP4 recordings for annotation
+├── vrs/                              LOCAL ONLY: Aria VRS recordings to convert
 ├── workspace/                        LOCAL ONLY: database and generated data
 └── exports/                          Optional local folder for downloaded exports
 ```
@@ -104,7 +105,7 @@ Directories marked local/generated are absent from a fresh clone. Keep the sourc
 
 Use either method:
 
-- Copy **`.mp4` or `.vrs`** files into the repository's `data/` directory, then open Data Library or click **Scan data/**.
+- Copy **`.mp4`** files into the repository's `data/` directory, then open Data Library or click **Scan data/**.
 - In Data Library, click **Add recordings**, select a destination folder and choose files. The app copies them into `data/`; it does not move the originals from their previous location.
 
 Subdirectories are supported. For example:
@@ -113,14 +114,14 @@ Subdirectories are supported. For example:
 data/
 ├── development/
 │   ├── recording_a.mp4
-│   └── recording_b.vrs
+│   └── recording_b.mp4
 └── test/
     └── recording_c.mp4
 ```
 
 Folder names are for organization; participant-level train/development/test separation is a study decision and is not enforced automatically. Use **Metadata** to record the intended dataset split and trial information.
 
-Only source MP4/VRS recordings belong in `data/`. Frames, annotation exports and playback proxies are saved elsewhere. The app rejects symbolic links and paths outside `data/` for managed file operations.
+Only MP4 recordings belong in `data/`; Data Library ignores other files. Annotation always works on MP4s. Aria **VRS** recordings go in `vrs/` and are converted on the **VRS → MP4** page (below). Frames, annotation exports and playback proxies are saved elsewhere. The app rejects symbolic links and paths outside `data/` for managed file operations.
 
 **File operations affect your local files:** confirmed deletion removes the actual source files from `data/`. The app preserves their historical index entries, saved annotations and frame caches, marking the recordings as missing. Scanning files does not generate frames or invoke a model.
 
@@ -145,8 +146,12 @@ workspace/
 └── previews/
     └── <asset_id>/
         └── <source_hash>/
-            ├── preview.mp4                  On-demand browser playback proxy
-            └── time_mapping.json            VRS proxy's DEVICE_TIME mapping
+            └── preview.mp4                  On-demand browser playback proxy
+└── exports/
+    └── <name>/                              One folder per converted VRS
+        ├── eye_gaze.csv                     Optional
+        ├── hand_tracking.csv                Optional
+        └── manifest.json                    Options, VRS hash, time zero
 ```
 
 `asset_id` is a local recording ID stored in `app.db`. `set_id` identifies an extraction configuration and source hash; frame caches are not named after the source video's filename.
@@ -157,7 +162,8 @@ workspace/
 | Edit an annotation | Unsaved changes remain in the browser only |
 | Click **Save** in Annotation | `workspace/annotations/<asset_id>/draft.json` |
 | Click **Generate frames** | JPEGs and manifest in `workspace/frames/<asset_id>/<set_id>/` |
-| Prepare a playback preview | Proxy and, for VRS, time mapping in `workspace/previews/…` |
+| Prepare a playback preview | Proxy in `workspace/previews/…` |
+| Click **Convert** on VRS → MP4 | `data/<name>.mp4`, plus CSVs in `workspace/exports/<name>/` |
 | Export CSV/JSON | Browser download; choose where to save it |
 
 **Back up `data/` and the entire `workspace/` together.** Stop the app before making a simple file-copy backup. Do not delete `app.db` to reset a view: rescanning identical videos into a new database generates new asset IDs, so existing annotation/cache folders will not automatically reconnect. A single `draft.json` copied to another computer is not sufficient to associate it with a freshly scanned recording.
@@ -170,7 +176,20 @@ workspace/
 4. Open **Frames & QC** and click **Generate frames**. The whole recording is sampled at `0.0, 0.1, 0.2, …` seconds, strictly before its end. Each sample selects the nearest original frame; duplicate selections share one JPEG. The manifest retains requested times, actual times and source indices. Progress is shown, and results are paginated at 24 frames per page.
 5. Generate again with the same source/configuration to reuse an intact cache. Source changes are flagged so old results can be reviewed. Generating frames does not submit them to a VLM.
 
-MP4 playback and extraction are verified. VRS requires a usable RGB stream; browser playback uses an on-demand proxy. The VRS adapter and simulated time-mapping tests are implemented, but end-to-end verification with a real Gen 2 VRS recording is still pending. Start with an MP4 when checking a new installation.
+MP4 playback and extraction are verified. Start with an MP4 when checking a new installation.
+
+### Convert VRS recordings to MP4
+
+Copy Aria `.vrs` files into the repository's `vrs/` folder (created on first start, ignored by Git) and open **VRS → MP4** in the sidebar; `vrs/` in Data Library's Folders panel also jumps straight to it. Click **Convert** on a recording and confirm its export options in the dialog: they belong to that recording, and the next dialog starts from the previous choices. The MP4 is written to `data/<name>.mp4`, appears in Data Library and is annotated like any other MP4. The page never overwrites an existing MP4: to convert again, delete or rename the MP4 in Data Library first. Each converted row shows the options that produced it, read from its manifest.
+
+- **Video:** always included. Every RGB frame keeps its real DEVICE_TIME spacing (10 fps for profile8, 30 fps for profile10).
+- **Audio track:** all microphone channels mixed to mono, each sample placed at its capture time, with a gain (default 30 dB) followed by a limiter. Aria microphones record very quietly.
+- **Eye gaze CSV:** one row per gaze sample (30 Hz): yaw/pitch in radians, depth and the gaze point in CPF coordinates in metres, validity flags and blinks.
+- **Hand tracking CSV:** one row per sample (30 Hz); for each hand, confidence plus wrist, palm and 21 landmark positions in device coordinates in metres. An untracked hand leaves its columns empty.
+
+The CSVs are saved in `workspace/exports/<name>/` and can be downloaded from the page. Their `video_ms` counts from the first video frame, the same zero as the MP4 and its annotation timeline; `device_time_ns` keeps the raw DEVICE_TIME. Samples recorded just before the first or after the last frame are kept, so `video_ms` can be negative or exceed the video length. A recording without a requested stream (for example hand tracking under `profile8_ml_et`) fails with a message and writes nothing. Converting a 21-second profile8 recording takes about a minute. The audio track contains participants' voices; share it only as your study's consent allows.
+
+Earlier versions also indexed `.vrs` files in `data/`. Move them to `vrs/`; their old Data Library rows then show as missing.
 
 ## 6. Export annotations for teammates
 
@@ -221,13 +240,13 @@ Open **<http://127.0.0.1:8000>**. Stop the development services first if port 80
 
 | Symptom | Check |
 | --- | --- |
-| No recordings appear | Put MP4/VRS files under this checkout's `data/`, then scan. Check folder/search filters. |
+| No recordings appear | Put MP4 files under this checkout's `data/`, then scan; convert VRS files on **VRS → MP4**. Check folder/search filters. |
 | `ffmpeg` / `ffprobe` is missing | Install FFmpeg and ensure both commands are on PATH. |
 | Backend environment is missing | Create `app/backend/.venv` using Python 3.12 and install `requirements.lock`. |
 | fnm cannot find Node 24 | Run `fnm install 24`. |
 | Port 5173 or 8000 is already in use | Use the already-running instance, or stop its original terminal with Ctrl+C before restarting. |
 | Aria dependency installation fails | Check Python is 3.12 and use a supported platform with a matching Project Aria Tools wheel; another Python version may not have a compatible wheel. |
-| A recording cannot play | Read its media error; try **Prepare preview** if available. VRS cannot play directly in the browser. |
+| A recording cannot play | Read its media error; try **Prepare preview** if available. |
 | Annotation export is disabled | Save edits first. A draft without any phase labels is not an annotated recording for export. |
 
 The backend health endpoint is <http://127.0.0.1:8000/api/health>. It should report `status: "ok"`, `ffmpeg: true` and `ffprobe: true`.

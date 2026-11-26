@@ -232,7 +232,7 @@ export function DetailPage({
             preload="metadata"
             playsInline
           />
-          {(mediaError || item.path.endsWith('.vrs')) && (
+          {mediaError && (
             <div className="cardBody">
               <p>
                 {item.info.error ||

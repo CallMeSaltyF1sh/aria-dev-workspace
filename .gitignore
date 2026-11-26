@@ -9,6 +9,7 @@ outputs/vlm_pilot/
 # Temporary Superdesign preview sources
 .superdesign/tmp/
 data/
+vrs/
 workspace/
 # Locally exported research annotations
 /exports/

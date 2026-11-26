@@ -13,7 +13,16 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, update
 
-from . import media, services, frame_sets, annotation_exports, annotation_imports, prompts, vlm
+from . import (
+    media,
+    services,
+    frame_sets,
+    annotation_exports,
+    annotation_imports,
+    prompts,
+    vlm,
+    vrs_export,
+)
 from .responses import (
     AssetOutput,
     DeletionOutput,
@@ -33,6 +42,7 @@ from .responses import (
     VlmRunListItem,
     AnnotationImportPreview,
     AnnotationImportResult,
+    VrsFileOutput,
 )
 from .storage import DATA, LOCK, ROOT, WORK, asset_row, assets, digest, engine, jobs, source_path
 
@@ -209,8 +219,8 @@ def import_media(
     filename = name or file.filename
     if not filename or Path(filename).name != filename or "\\" in filename:
         raise ValueError("Invalid file name.")
-    if Path(filename).suffix.lower() not in {".mp4", ".vrs"}:
-        raise ValueError("Choose an MP4 or VRS recording.")
+    if Path(filename).suffix.lower() != ".mp4":
+        raise ValueError("Choose an MP4 recording. Convert VRS files on the VRS → MP4 page.")
     with LOCK:
         folder = source_path(directory, exists=True)
         destination = source_path((folder.relative_to(DATA) / filename).as_posix())
@@ -288,8 +298,6 @@ def recording(asset_id: str):
     proxy = WORK / "previews" / asset_id / asset["hash"] / "preview.mp4"
     if proxy.exists():
         path = proxy
-    if path.suffix.lower() == ".vrs":
-        raise ValueError("Prepare a playable preview first.")
     return FileResponse(path, media_type="video/mp4")
 
 
@@ -297,12 +305,6 @@ def recording(asset_id: str):
 def timestamps(asset_id: str):
     asset = asset_row(asset_id)
     path = source_path(asset["path"], exists=True)
-    if path.suffix.lower() == ".vrs":
-        from projectaria_tools.core.sensor_data import TimeDomain
-
-        provider, stream = media.vrs_provider(path)
-        times = provider.get_timestamps_ns(stream, TimeDomain.DEVICE_TIME)
-        return [(stamp - times[0]) / 1e6 for stamp in times]
     return media.mp4_times(str(path), asset["fingerprint"])
 
 
@@ -377,6 +379,29 @@ def frame_file(asset_id: str, group_id: str, filename: str):
     if filename not in filenames:
         raise FileNotFoundError("Frame not found.")
     return FileResponse(WORK / "frames" / asset_id / group_id / filename)
+
+
+class VrsConvertInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    audio: bool = True
+    gain_db: int = Field(default=30, ge=0, le=40)
+    eye_gaze: bool = False
+    hands: bool = False
+
+
+@app.get("/api/vrs", response_model=list[VrsFileOutput])
+def vrs_files():
+    return vrs_export.listing()
+
+
+@app.post("/api/vrs/{name}/convert", response_model=JobOutput)
+def vrs_convert(name: str, body: VrsConvertInput):
+    return vrs_export.submit(name, body.model_dump())
+
+
+@app.get("/api/vrs/{name}/files/{filename}")
+def vrs_export_file(name: str, filename: str):
+    return FileResponse(vrs_export.file_path(name, filename), filename=filename)
 
 
 class VlmInput(BaseModel):

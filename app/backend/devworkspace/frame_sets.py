@@ -146,31 +146,12 @@ def build(asset, settings, progress):
     temporary.mkdir(parents=True)
     try:
         progress(0, 0, "indexing")
-        vrs = path.suffix.lower() == ".vrs"
-        if vrs:
-            from projectaria_tools.core.sensor_data import TimeDomain
-
-            provider, stream = media.vrs_provider(path)
-            stamps = provider.get_timestamps_ns(stream, TimeDomain.DEVICE_TIME)
-            times = [(stamp - stamps[0]) / 1e6 for stamp in stamps]
-        else:
-            times = media.mp4_times(str(path), asset["fingerprint"])
+        times = media.mp4_times(str(path), asset["fingerprint"])
         frames = plan(times, asset["info"]["duration_ms"])
         if not frames:
             raise ValueError("No frames could be selected from this recording.")
         progress(0, len(frames), "extracting")
-        if vrs:
-            for done, frame in enumerate(frames, 1):
-                image_data, _ = provider.get_image_data_by_index(stream, frame["index"])
-                image = Image.fromarray(image_data.to_numpy_array())
-                image.thumbnail((settings["width"], settings["width"] * 4))
-                image.save(temporary / frame["file"], quality=90)
-                frame.update(
-                    width=image.width, height=image.height, device_time_ns=stamps[frame["index"]]
-                )
-                progress(done, len(frames), "extracting")
-        else:
-            export_mp4(path, asset, frames, temporary, settings["width"], progress)
+        export_mp4(path, asset, frames, temporary, settings["width"], progress)
         progress(len(frames), len(frames), "validating")
         if digest(path) != asset["hash"]:
             raise ValueError("Source changed during extraction.")

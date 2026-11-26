@@ -96,6 +96,8 @@ def test_full_video_plan_deduplicates_and_maps_every_sample():
 
 
 def test_paths_deletion_confirmation_and_symlinks(client, video, tmp_path):
+    import shutil
+
     asset = scan(client)
     assert client.post("/api/directories", json={"path": "../outside"}).status_code == 400
     (DATA / "link.mp4").symlink_to(video)
@@ -104,11 +106,39 @@ def test_paths_deletion_confirmation_and_symlinks(client, video, tmp_path):
     assert (
         client.post("/api/delete", json={"ids": [asset["id"]], "token": "bad"}).status_code == 400
     )
+    backup = tmp_path / "backup.mp4"
+    shutil.copyfile(video, backup)
     assert video.exists()
     response = client.post("/api/delete", json={"ids": [asset["id"]], "token": preview["token"]})
     assert response.status_code == 200
     assert not video.exists()
-    assert client.get("/api/library").json()["assets"][0]["missing"] == 1
+    # Unannotated recordings with no VLM runs disappear instead of lingering as missing.
+    assert client.get("/api/library").json()["assets"] == []
+
+    # Annotated recordings stay listed as missing until explicitly removed.
+    shutil.copyfile(backup, DATA / "annotated.mp4")
+    annotated = scan(client)
+    draft = client.get(f"/api/assets/{annotated['id']}/annotation").json()
+    draft["intervals"][0]["phase"] = "P1"
+    assert (
+        client.put(
+            f"/api/assets/{annotated['id']}/annotation",
+            json={"revision": 0, "intervals": draft["intervals"]},
+        ).status_code
+        == 200
+    )
+    (DATA / "annotated.mp4").unlink()
+    listed = client.post("/api/scan").json()["assets"]
+    assert len(listed) == 1 and listed[0]["id"] == annotated["id"] and listed[0]["missing"] == 1
+    purge_preview = client.post("/api/deletion-preview", json={"ids": [annotated["id"]]}).json()
+    assert purge_preview["files"] == [] and purge_preview["records"] == ["annotated.mp4"]
+    assert purge_preview["annotations"] == 1
+    purged = client.post(
+        "/api/delete", json={"ids": [annotated["id"]], "token": purge_preview["token"]}
+    )
+    assert purged.status_code == 200
+    assert purged.json()["assets"] == []
+    assert not (WORK / "annotations" / annotated["id"]).exists()
 
 
 def test_rename_preserves_id_and_import_conflict(client, video):
@@ -272,52 +302,6 @@ def test_csv_migration_preview_is_non_mutating(client, video, tmp_path):
     apply_review(value, review_hash(value))
     assert json.loads(path.read_text())["intervals"][0]["end_ms"] == asset["info"]["duration_ms"]
     assert ",2,P0" in csv_file.read_text()
-
-
-def test_vrs_proxy_adapter_preserves_irregular_timing(client, monkeypatch):
-    """Adapter simulation only; this does not validate an actual Aria VRS."""
-    import numpy as np
-    from devworkspace import media
-    from devworkspace.storage import digest
-
-    class Image:
-        def to_numpy_array(self):
-            return np.zeros((48, 64, 3), dtype=np.uint8)
-
-    base = 3_000_000_000
-    times = [base, base + 83_333_333, base + 190_000_000, base + 250_000_000]
-
-    class Provider:
-        def get_timestamps_ns(self, *_):
-            return times
-
-        def get_image_data_by_index(self, *_):
-            return Image(), None
-
-    monkeypatch.setattr(media, "vrs_provider", lambda _: (Provider(), "rgb"))
-    source = DATA / "simulation.vrs"
-    source.write_bytes(b"simulated provider input")
-    output = media.make_proxy(source, {"id": "adapter-test", "hash": digest(source)})
-    mapping = json.loads((output.parent / "time_mapping.json").read_text())
-    assert len(mapping["frames"]) == len(times)
-    for record, stamp in zip(mapping["frames"], times):
-        assert record["device_ns"] == stamp
-        assert abs(record["media_ms"] - (stamp - base) / 1e6) <= 1
-    from devworkspace import frame_sets
-
-    full = frame_sets.generate(
-        {
-            "id": "adapter-test",
-            "path": source.name,
-            "hash": digest(source),
-            "info": {"duration_ms": 250, "time_basis": "DEVICE_TIME", "rgb_stream": "rgb"},
-        },
-        {"interval_ms": 100, "width": 160},
-    )
-    assert full["sample_count"] == 3
-    assert [frame["requested_ms"] for frame in full["frames"]] == [0, 100, 200]
-    assert [frame["device_time_ns"] for frame in full["frames"]] == times[:3]
-    assert [frame["actual_ms"] for frame in full["frames"]] == [0, 83.333333, 190]
 
 
 def test_annotation_export_selected_recordings(client, video):

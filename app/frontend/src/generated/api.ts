@@ -381,6 +381,57 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/vrs': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Vrs Files */
+    get: operations['vrs_files_api_vrs_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/vrs/{name}/convert': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /** Vrs Convert */
+    post: operations['vrs_convert_api_vrs__name__convert_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/vrs/{name}/files/{filename}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Vrs Export File */
+    get: operations['vrs_export_file_api_vrs__name__files__filename__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/api/vlm/config': {
     parameters: {
       query?: never
@@ -728,12 +779,22 @@ export interface components {
     DeletionOutput: {
       /** Files */
       files: string[]
+      /**
+       * Records
+       * @default []
+       */
+      records: string[]
       /** Token */
       token: string
       /** Annotations */
       annotations: number
       /** Frame Groups */
       frame_groups: number
+      /**
+       * Vlm Runs
+       * @default 0
+       */
+      vlm_runs: number
     }
     /** DirectoryInput */
     DirectoryInput: {
@@ -1274,6 +1335,75 @@ export interface components {
       raw?: string | null
       /** Attempts */
       attempts?: components['schemas']['VlmAttemptOutput'][]
+    }
+    /** VrsConvertInput */
+    VrsConvertInput: {
+      /**
+       * Audio
+       * @default true
+       */
+      audio: boolean
+      /**
+       * Gain Db
+       * @default 30
+       */
+      gain_db: number
+      /**
+       * Eye Gaze
+       * @default false
+       */
+      eye_gaze: boolean
+      /**
+       * Hands
+       * @default false
+       */
+      hands: boolean
+    }
+    /** VrsExportOutput */
+    VrsExportOutput: {
+      /** Source Hash */
+      source_hash: string
+      /** Created At */
+      created_at: string
+      settings: components['schemas']['VrsExportSettings']
+      /** Time Zero Device Ns */
+      time_zero_device_ns: number
+      /** Duration Ms */
+      duration_ms: number
+      /** Mp4 */
+      mp4: string
+      /** Files */
+      files: string[]
+      /** Details */
+      details: {
+        [key: string]: unknown
+      }
+    }
+    /** VrsExportSettings */
+    VrsExportSettings: {
+      /** Audio */
+      audio: boolean
+      /** Gain Db */
+      gain_db: number
+      /** Eye Gaze */
+      eye_gaze: boolean
+      /** Hands */
+      hands: boolean
+    }
+    /** VrsFileOutput */
+    VrsFileOutput: {
+      /** Name */
+      name: string
+      /** Size */
+      size: number
+      /** Mp4 */
+      mp4: string
+      /** Mp4 Exists */
+      mp4_exists: boolean
+      /** Mp4 Asset Id */
+      mp4_asset_id?: string | null
+      export?: components['schemas']['VrsExportOutput'] | null
+      job?: components['schemas']['JobOutput'] | null
     }
   }
   responses: never
@@ -2011,6 +2141,93 @@ export interface operations {
       path: {
         asset_id: string
         group_id: string
+        filename: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  vrs_files_api_vrs_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['VrsFileOutput'][]
+        }
+      }
+    }
+  }
+  vrs_convert_api_vrs__name__convert_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        name: string
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['VrsConvertInput']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['JobOutput']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  vrs_export_file_api_vrs__name__files__filename__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        name: string
         filename: string
       }
       cookie?: never

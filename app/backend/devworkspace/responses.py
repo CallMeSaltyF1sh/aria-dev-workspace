@@ -111,6 +111,34 @@ class FrameSetOutput(BaseModel):
     source_changed: bool
 
 
+class VrsExportSettings(BaseModel):
+    audio: bool
+    gain_db: int
+    eye_gaze: bool
+    hands: bool
+
+
+class VrsExportOutput(BaseModel):
+    source_hash: str
+    created_at: str
+    settings: VrsExportSettings
+    time_zero_device_ns: int
+    duration_ms: float
+    mp4: str
+    files: list[str]
+    details: dict[str, Any]
+
+
+class VrsFileOutput(BaseModel):
+    name: str
+    size: int
+    mp4: str
+    mp4_exists: bool
+    mp4_asset_id: str | None = None
+    export: VrsExportOutput | None = None
+    job: JobOutput | None = None
+
+
 class FramePageOutput(BaseModel):
     frames: list[FrameOutput]
     total: int
@@ -121,9 +149,11 @@ class FramePageOutput(BaseModel):
 
 class DeletionOutput(BaseModel):
     files: list[str]
+    records: list[str] = []
     token: str
     annotations: int
     frame_groups: int
+    vlm_runs: int = 0
 
 
 class AnnotationExportItem(BaseModel):

@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as Menu from '@radix-ui/react-dropdown-menu'
 import {
+  IconArrowUpRight,
   IconChevronRight,
   IconDots,
   IconPlus,
   IconRefresh,
 } from '@tabler/icons-react'
-import { api, time, type Deletion, type Library } from './api'
+import { api, time, type Deletion, type Library, type VrsFile } from './api'
 import { Modal } from './components'
 import { AnnotationExport } from './AnnotationExport'
 import { AnnotationImport } from './AnnotationImport'
@@ -56,6 +57,25 @@ export function LibraryPage({
   }, [scan])
   const directory = params.get('folder') || ''
   const visible = filterAssets(library.assets, params)
+  const vrs = useQuery({
+    queryKey: ['vrs'],
+    queryFn: () => api<VrsFile[]>('/vrs'),
+    staleTime: 5000,
+  })
+  const vrsBusy =
+    vrs.data?.some((file) =>
+      ['queued', 'running'].includes(file.job?.status || ''),
+    ) ?? false
+  const vrsWaiting = vrs.data?.filter((file) => !file.mp4_exists).length ?? 0
+  const vrsTotal = vrs.data?.length ?? 0
+  const vrsTooltip = vrsBusy
+    ? 'Converting VRS to MP4 — Open VRS → MP4'
+    : vrsWaiting > 0
+      ? `${vrsTotal} in vrs/ (${vrsWaiting} waiting for MP4) — Open VRS → MP4`
+      : `${vrsTotal} in vrs/ — Open VRS → MP4`
+  const hasLegacyFormats =
+    Boolean(params.get('format')) ||
+    library.assets.some((a) => !a.path.toLowerCase().endsWith('.mp4'))
   const run = async (action: () => Promise<void>) => {
     setBusy(true)
     setError('')
@@ -122,60 +142,72 @@ export function LibraryPage({
             <button
               className="iconButton"
               aria-label="New folder"
+              title={`New folder in data/${directory}`}
               onClick={() => openFolder('folder')}
             >
               <IconPlus size={17} />
             </button>
           </div>
-          {library.directories.map((path) => (
-            <div
-              key={path}
-              className={styles.folder}
-              style={{
-                paddingLeft:
-                  8 + (path ? Math.max(0, path.split('/').length - 1) * 12 : 0),
-              }}
-            >
-              <button
-                className={path === directory ? styles.chosen : ''}
-                onClick={() => update('folder', path)}
-                title={path || 'data/'}
-              >
-                {path ? path.split('/').at(-1) : 'data/'}
+          <div className={styles.folderList}>
+            {library.directories.map((path) => (
+              <div key={path} className={styles.folder}>
+                <button
+                  style={{
+                    paddingLeft: 9 + (path ? path.split('/').length * 12 : 0),
+                  }}
+                  className={path === directory ? styles.chosen : ''}
+                  onClick={() => update('folder', path)}
+                  title={path ? `data/${path}` : 'data/'}
+                >
+                  <span className={styles.folderName}>
+                    {path ? path.split('/').at(-1) : 'data/'}
+                  </span>
+                  <small>
+                    {
+                      library.assets.filter(
+                        (a) => !path || a.path.startsWith(path + '/'),
+                      ).length
+                    }
+                  </small>
+                </button>
+                {path && (
+                  <Menu.Root>
+                    <Menu.Trigger
+                      className="iconButton"
+                      aria-label={'Manage ' + path}
+                    >
+                      <IconDots size={16} />
+                    </Menu.Trigger>
+                    <Menu.Portal>
+                      <Menu.Content className="dropdown">
+                        <Menu.Item onSelect={() => openFolder('rename', path)}>
+                          Rename
+                        </Menu.Item>
+                        <Menu.Item
+                          onSelect={() => {
+                            void previewDelete([], path)
+                          }}
+                        >
+                          Delete folder
+                        </Menu.Item>
+                      </Menu.Content>
+                    </Menu.Portal>
+                  </Menu.Root>
+                )}
+              </div>
+            ))}
+            <div className={styles.folder}>
+              <Link className={styles.vrsPeer} to="/vrs" title={vrsTooltip}>
+                <span className={styles.vrsLabel}>
+                  <span className={styles.folderName}>vrs/</span>
+                  <IconArrowUpRight size={13} className={styles.vrsArrow} />
+                </span>
                 <small>
-                  {
-                    library.assets.filter(
-                      (a) => !path || a.path.startsWith(path + '/'),
-                    ).length
-                  }
+                  {vrsBusy ? 'converting…' : vrs.isPending ? '…' : vrsTotal}
                 </small>
-              </button>
-              {path && (
-                <Menu.Root>
-                  <Menu.Trigger
-                    className="iconButton"
-                    aria-label={'Manage ' + path}
-                  >
-                    <IconDots size={16} />
-                  </Menu.Trigger>
-                  <Menu.Portal>
-                    <Menu.Content className="dropdown">
-                      <Menu.Item onSelect={() => openFolder('rename', path)}>
-                        Rename
-                      </Menu.Item>
-                      <Menu.Item
-                        onSelect={() => {
-                          void previewDelete([], path)
-                        }}
-                      >
-                        Delete folder
-                      </Menu.Item>
-                    </Menu.Content>
-                  </Menu.Portal>
-                </Menu.Root>
-              )}
+              </Link>
             </div>
-          ))}
+          </div>
         </aside>
         <section className="card">
           <div className="cardHead">
@@ -197,22 +229,24 @@ export function LibraryPage({
               value={params.get('q') || ''}
               onChange={(e) => update('q', e.target.value)}
             />
-            <select
-              aria-label="Format"
-              value={params.get('format') || ''}
-              onChange={(e) => update('format', e.target.value)}
-            >
-              <option value="">All formats</option>
-              <option value=".mp4">MP4</option>
-              <option value=".vrs">VRS</option>
-            </select>
+            {hasLegacyFormats && (
+              <select
+                aria-label="Format"
+                value={params.get('format') || ''}
+                onChange={(e) => update('format', e.target.value)}
+              >
+                <option value="">All formats</option>
+                <option value=".mp4">MP4</option>
+                <option value=".vrs">VRS</option>
+              </select>
+            )}
             <select
               aria-label="Media status"
               value={params.get('media') || ''}
               onChange={(e) => update('media', e.target.value)}
             >
               <option value="">All media states</option>
-              {['ready', 'needs_preview', 'error', 'missing'].map((s) => (
+              {['ready', 'error', 'missing'].map((s) => (
                 <option key={s}>{s}</option>
               ))}
             </select>
@@ -318,7 +352,14 @@ export function LibraryPage({
                       </td>
                       <td>
                         <span
-                          className="badge"
+                          className={[
+                            'badge',
+                            asset.info.status === 'missing' &&
+                              styles.badgeMissing,
+                            asset.info.status === 'error' && styles.badgeError,
+                          ]
+                            .filter(Boolean)
+                            .join(' ')}
                           title={asset.info.error || undefined}
                         >
                           {asset.info.status.replaceAll('_', ' ')}
@@ -355,11 +396,20 @@ export function LibraryPage({
             </table>
           </div>
           {!visible.length && (
-            <p className="empty">
-              {library.assets.length
-                ? 'No recordings match these filters.'
-                : 'Add an MP4 or VRS recording to get started.'}
-            </p>
+            <div className="empty">
+              <div>
+                {library.assets.length
+                  ? 'No recordings match these filters.'
+                  : 'Add an MP4 recording to get started.'}
+              </div>
+              {!library.assets.length && (vrsBusy || vrsWaiting > 0) && (
+                <Link className={styles.emptyVrsLink} to="/vrs">
+                  {vrsBusy
+                    ? 'View VRS conversion progress →'
+                    : `Convert ${vrsWaiting} waiting file${vrsWaiting === 1 ? '' : 's'} in vrs/ →`}
+                </Link>
+              )}
+            </div>
           )}
         </section>
       </div>
@@ -421,11 +471,11 @@ export function LibraryPage({
                 </select>
               </label>
               <label>
-                MP4 / VRS files
+                MP4 files
                 <input
                   ref={fileInput}
                   type="file"
-                  accept=".mp4,.vrs"
+                  accept=".mp4"
                   multiple
                   required
                   onChange={(e) => {
@@ -520,35 +570,72 @@ export function LibraryPage({
           title={
             deletion.directory
               ? 'Delete folder “' + deletion.directory + '”?'
-              : 'Delete ' +
-                deletion.files.length +
-                ' local file' +
-                (deletion.files.length === 1 ? '' : 's') +
-                '?'
+              : deletion.files.length && deletion.records.length
+                ? `Delete ${deletion.files.length} file${deletion.files.length === 1 ? '' : 's'} and remove ${deletion.records.length} missing record${deletion.records.length === 1 ? '' : 's'}?`
+                : deletion.records.length
+                  ? `Remove ${deletion.records.length} missing record${deletion.records.length === 1 ? '' : 's'}?`
+                  : `Delete ${deletion.files.length} local file${deletion.files.length === 1 ? '' : 's'}?`
           }
           onClose={() => {
             if (!busy) setDeletion(null)
           }}
         >
-          <p>This directly deletes the actual files from data/.</p>
-          <ul className={styles.fileList}>
-            {deletion.files.map((path) => (
-              <li key={path} className="mono">
-                {path}
-              </li>
-            ))}
-          </ul>
-          <p>
-            {deletion.annotations} annotation(s) and {deletion.frame_groups}{' '}
-            frame group(s) will remain as historical records.
-          </p>
+          {deletion.files.length > 0 && (
+            <>
+              <p>This directly deletes the actual files from data/:</p>
+              <ul className={styles.fileList}>
+                {deletion.files.map((path) => (
+                  <li key={path} className="mono">
+                    {path}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {deletion.records.length > 0 && (
+            <>
+              <p>
+                {deletion.files.length > 0
+                  ? 'These missing records (and any saved work attached to them) will also be removed from the library:'
+                  : 'The source files are already missing from data/. Confirming permanently removes these library records:'}
+              </p>
+              <ul className={styles.fileList}>
+                {deletion.records.map((path) => (
+                  <li key={path} className="mono">
+                    {path}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {deletion.records.length > 0 ? (
+            <p className="small muted">
+              Removes {deletion.annotations} saved annotation(s),{' '}
+              {deletion.vlm_runs} VLM run(s), and {deletion.frame_groups} frame
+              group(s) attached to the missing record(s).
+            </p>
+          ) : deletion.annotations > 0 || deletion.vlm_runs > 0 ? (
+            <p className="small muted">
+              Recordings with saved work ({deletion.annotations} annotation(s),{' '}
+              {deletion.vlm_runs} VLM run(s)) stay listed as missing to protect
+              your data until removed again. Unannotated recordings disappear
+              immediately.
+            </p>
+          ) : (
+            <p className="small muted">
+              No saved annotations or VLM runs are attached; these recordings
+              will disappear from Data Library immediately.
+            </p>
+          )}
           <label className="check">
             <input
               type="checkbox"
               checked={confirmed}
               onChange={(e) => setConfirmed(e.target.checked)}
             />
-            I understand these local files will be deleted.
+            {deletion.files.length > 0
+              ? 'I understand these local files will be deleted.'
+              : 'I understand these missing records and their saved data will be removed.'}
           </label>
           <button
             className="danger"
@@ -559,6 +646,8 @@ export function LibraryPage({
                   ['library'],
                   await api('/delete', 'POST', deletion),
                 )
+                void client.invalidateQueries({ queryKey: ['vrs'] })
+                void client.invalidateQueries({ queryKey: ['vlm-runs'] })
                 if (
                   deletion.directory &&
                   (directory === deletion.directory ||
@@ -573,7 +662,11 @@ export function LibraryPage({
               })
             }
           >
-            Delete files from data/
+            {deletion.files.length > 0 && deletion.records.length > 0
+              ? 'Delete files & remove records'
+              : deletion.records.length > 0
+                ? 'Remove from library'
+                : 'Delete files from data/'}
           </button>
           {error && (
             <p className="error" role="alert">

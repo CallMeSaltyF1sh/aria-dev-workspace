@@ -1,6 +1,6 @@
 # Dev Workspace — local Data Library
 
-The first working module manages local MP4/VRS recordings, timeline annotations and manually generated full-video frame sets. Prompt Library, VLM Tasks and Evaluation currently show placeholders; no model requests are sent.
+The first working module manages local MP4 recordings (Aria VRS files are converted to MP4 first), timeline annotations and manually generated full-video frame sets. Prompt Library, VLM Tasks and Evaluation currently show placeholders; no model requests are sent.
 
 For a new machine, follow the [root README](../README.md) first. It covers installation, project directories, where recordings belong, generated data locations, backups and annotation sharing. The startup commands below assume the local dependencies have already been installed.
 
@@ -40,11 +40,13 @@ The backend environment is separate from the existing research environment under
 
 | Location | Contents |
 | --- | --- |
-| `data/` | Original MP4/VRS recordings and user-created folders. Imports copy files here. Confirmed deletions remove these actual files. |
+| `data/` | MP4 recordings and user-created folders. Imports copy files here. Confirmed deletions remove these actual files. |
 | `workspace/app.db` | Stable asset IDs, file hashes, study metadata and durable job statuses. |
 | `workspace/annotations/<asset_id>/draft.json` | Saved human annotation. Unsaved edits remain only in the open editor. |
 | `workspace/frames/<asset_id>/<group_id>/` | JPEG frames plus `manifest.json`, generated only when requested. |
-| `workspace/previews/<asset_id>/<source_hash>/` | Browser playback proxies and VRS timestamp mapping. |
+| `vrs/` | Aria VRS recordings waiting to be converted on the VRS → MP4 page. |
+| `workspace/previews/<asset_id>/<source_hash>/` | Browser playback proxies. |
+| `workspace/exports/<name>/` | Eye-gaze and hand-tracking CSVs and `manifest.json` from converting `vrs/<name>.vrs`. |
 | `workspace/migrations/pilot-csv-review.json` | Reviewable proposal for importing the original pilot labels. |
 
 Back up `data/` **and** `workspace/` together. The database preserves IDs used by annotations and frame groups. Frames can be listed again from their manifests; rebuilding a deleted database does not recover the original asset IDs automatically. Keys, recordings, derived data, test outputs and local environments are excluded from Git.
@@ -58,7 +60,7 @@ Back up `data/` **and** `workspace/` together. The database preserves IDs used b
 5. **Metadata** stores anonymous participant, trial, garment, condition, split and overlay status. These are descriptive fields; the app does not enforce participant-level data partitioning yet.
 6. **Frames & QC** prepares the entire recording at a fixed 0.1-second interval. Click **Generate frames** to start; no target time, frame count or spacing inputs are required. Progress is persisted, and results are shown 24 images per page. Identical source/configuration reuses an intact cache. Frames are never generated just by opening the page.
 
-Playback speed supports 0.5/0.75/1/1.25/1.5/2×. The left/right controls move one **decoded frame**, rather than one second. Full-video frame sets sample `0, 100, 200, …` milliseconds strictly before the recording end. Each request selects the nearest original decoded frame, with an earlier-frame tie break. Duplicate selections produce one JPEG and retain all corresponding `requested_times_ms` in the manifest. Actual timestamps, original frame index, dimensions, source hash, extraction version and settings remain traceable. MP4 is decoded in a single pass; VRS uses DEVICE_TIME and one provider per extraction. Generating frames does not send them to a model. Later Prompt tests and VLM Tasks select their prediction times and context from this cache.
+Playback speed supports 0.5/0.75/1/1.25/1.5/2×. The left/right controls move one **decoded frame**, rather than one second. Full-video frame sets sample `0, 100, 200, …` milliseconds strictly before the recording end. Each request selects the nearest original decoded frame, with an earlier-frame tie break. Duplicate selections produce one JPEG and retain all corresponding `requested_times_ms` in the manifest. Actual timestamps, original frame index, dimensions, source hash, extraction version and settings remain traceable. MP4 is decoded in a single pass. Generating frames does not send them to a model. Later Prompt tests and VLM Tasks select their prediction times and context from this cache.
 
 Imports reject existing names. Select **Skip existing filenames** for a batch or change an incoming single-file name. Equal content under a different name requires **Keep duplicate content**. Deletion previews list real files and retained references; active processing blocks deletion. Deleting a source preserves its missing entry, saved annotation and frame history. Interrupted jobs are shown after a service restart; run the same action again to retry.
 
@@ -119,16 +121,16 @@ With the backend running, regenerate shared request/response types using `npm ru
 ## Verification boundaries
 
 - **Verified with real MP4:** indexing both pilot files, browser playback/seek/step, frame extraction and cache reuse. The full annotation/import/delete flow is also verified with a generated test video.
-- **VRS adapter implemented, real recording pending:** RGB stream discovery, DEVICE_TIME reads, frame export, on-demand VFR preview and decoded timestamp validation. A simulated provider test checks irregular timestamp preservation; it does not verify actual Gen 2 recordings. Eye tracking, OptiTrack synchronization and sensor visualizations are outside this first stage.
+- **VRS → MP4:** checked with a real 21 s Gen 2 profile8 recording: video timing matches DEVICE_TIME, audio, eye-gaze and hand-tracking output, and the MP4 plays and appears in Data Library. A simulated provider test checks frame timing, audio placement and CSV alignment. Long recordings have not been timed; encoding has a one-hour limit. Gaze/hand overlays on the video, OptiTrack synchronization and other sensors are not implemented.
 - The built-in dressing labels are provisional. Saved drafts use `dressing-v1`; immutable evaluation snapshots belong to the later Evaluation module.
 - Data Library processing stays local. Starting VLM Run sends its selected frames to the configured API endpoint; it reads AIHUBMIX_API_KEY rather than a Gateway key. There is no multiuser authentication; keep the service bound to loopback.
-- MP4 whole-video extraction uses a one-hour subprocess limit; metadata and playback proxy operations retain the five-minute limit. Two jobs can run concurrently. Very long VRS previews may require a later streaming implementation. Batch model sampling belongs to VLM Tasks.
+- MP4 whole-video extraction uses a one-hour subprocess limit; metadata and playback proxy operations retain the five-minute limit. Two jobs can run concurrently. Batch model sampling belongs to VLM Tasks.
 
 ## Whole-video frame cache contract (2026-11-24)
 
 - `POST /api/assets/{id}/frames` takes `{"interval_ms":100,"width":1280}`. The interval is fixed at 100 ms. Old target/count/spacing request fields are rejected.
 - `GET /api/assets/{id}/frames` returns compact frame-set summaries, not every frame. `GET /api/assets/{id}/frames/{set_id}?page=1&page_size=24` returns a bounded page (maximum 100). `GET /api/frame-groups` exposes full-video summaries for future selection controls; its URL is retained for compatibility with the earlier plan.
-- `workspace/frames/<asset_id>/<set_id>/manifest.json` uses schema version 2 and extraction version 3, with `mode=full_video`, sampling settings, source identity, `sample_count` and an ordered `frames` array. Each frame contains `requested_ms` (first request), `requested_times_ms` (all deduplicated requests), `actual_ms`, original `index`, dimensions and JPEG path; VRS also includes `device_time_ns`.
+- `workspace/frames/<asset_id>/<set_id>/manifest.json` uses schema version 2 and extraction version 3, with `mode=full_video`, sampling settings, source identity, `sample_count` and an ordered `frames` array. Each frame contains `requested_ms` (first request), `requested_times_ms` (all deduplicated requests), `actual_ms`, original `index`, dimensions and JPEG path.
 - `set_id` depends on source hash, RGB stream, time basis, mode, interval, width and extractor version. Partial sets stay in a `.pending` directory and are published atomically only after validation. Incomplete cached sets are rebuilt. Progress is persisted in SQLite via migration 003.
 - Legacy target-centered caches remain on disk and remain readable through the API, but the new Frames & QC screen lists full-video sets only. Their old sample-group meaning is not reinterpreted.
 - Preparing every 0.1-second frame is distinct from running the VLM at every 0.1 seconds. Quick test will select one full-video set and a test target/context; Tests can select multiple sets with a shared prediction sampling rule. Those model controls belong to their later modules.

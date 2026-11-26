@@ -7,12 +7,14 @@ import {
   IconChecklist,
   IconChartBar,
   IconVideo,
+  IconTransform,
 } from '@tabler/icons-react'
-import { api, type Library } from './api'
+import { api, type Library, type VrsFile } from './api'
 import { LibraryPage } from './Library'
 import { DetailPage } from './Detail'
 import { PromptPage } from './PromptLibrary'
 import { TasksPage } from './VlmTasks'
+import { VrsPage } from './VrsConvert'
 import styles from './App.module.css'
 
 export function App() {
@@ -23,10 +25,21 @@ export function App() {
     queryKey: ['library'],
     queryFn: () => api<Library>('/library'),
   })
+  const vrs = useQuery({
+    queryKey: ['vrs'],
+    queryFn: () => api<VrsFile[]>('/vrs'),
+    staleTime: 5000,
+  })
+  const vrsWaiting = vrs.data?.filter((file) => !file.mp4_exists).length ?? 0
+  const vrsBusy =
+    vrs.data?.some((file) =>
+      ['queued', 'running'].includes(file.job?.status || ''),
+    ) ?? false
   const scan = async () => {
     setScanError('')
     try {
       client.setQueryData(['library'], await api<Library>('/scan', 'POST'))
+      void client.invalidateQueries({ queryKey: ['vrs'] })
     } catch (error) {
       setScanError((error as Error).message)
     }
@@ -34,6 +47,7 @@ export function App() {
   const assetId = location.pathname.match(/^\/data\/([^/]+)/)?.[1]
   const navigation = [
     ['/data', 'Data Library', IconFolders],
+    ['/vrs', 'VRS → MP4', IconTransform],
     ['/prompts', 'Prompt Library', IconFileText],
     ['/tasks', 'VLM Tasks', IconChecklist],
     ['/evaluation', 'Evaluation', IconChartBar],
@@ -58,7 +72,12 @@ export function App() {
               }
             >
               <Icon size={18} />
-              {label}
+              <span>{label}</span>
+              {path === '/vrs' && (vrsBusy || vrsWaiting > 0) && (
+                <small className={styles.navBadge}>
+                  {vrsBusy ? '…' : vrsWaiting}
+                </small>
+              )}
             </Link>
           ))}
         </nav>
@@ -94,6 +113,8 @@ export function App() {
             />
           ) : location.pathname === '/data' || location.pathname === '/' ? (
             <LibraryPage library={library.data} scan={scan} />
+          ) : location.pathname.startsWith('/vrs') ? (
+            <VrsPage />
           ) : location.pathname.startsWith('/prompts') ? (
             <PromptPage />
           ) : location.pathname.startsWith('/tasks') ? (

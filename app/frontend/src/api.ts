@@ -24,6 +24,8 @@ export type VlmSettings = components['schemas']['VlmInput']
 export type VlmRunSummary = components['schemas']['VlmRunSummary']
 export type VlmRunListItem = components['schemas']['VlmRunListItem']
 export type VlmRun = components['schemas']['VlmRunOutput']
+export type VrsFile = components['schemas']['VrsFileOutput']
+export type VrsSettings = components['schemas']['VrsConvertInput']
 
 export async function api<T>(
   path: string,

@@ -1,6 +1,5 @@
 import bisect
 import json
-import shutil
 import subprocess
 from functools import lru_cache
 from pathlib import Path
@@ -8,8 +7,8 @@ from pathlib import Path
 from .storage import WORK, digest
 
 
-def command(arguments):
-    result = subprocess.run(arguments, capture_output=True, timeout=300)
+def command(arguments, timeout=300):
+    result = subprocess.run(arguments, capture_output=True, timeout=timeout)
     if result.returncode:
         raise ValueError(
             result.stderr.decode(errors="replace")[-1400:] or "Media operation failed."
@@ -45,55 +44,6 @@ def probe(path: Path):
         "fps": numerator / denominator if denominator else 0,
         "codec": stream["codec_name"],
         "status": "ready",
-    }
-
-
-def vrs_provider(path):
-    from projectaria_tools.core import data_provider
-
-    provider = data_provider.create_vrs_data_provider(str(path))
-    if provider is None:
-        raise ValueError("VRS could not be opened.")
-    streams = [
-        stream
-        for stream in provider.get_all_streams()
-        if provider.check_stream_is_active(stream)
-        and provider.get_label_from_stream_id(stream).startswith("camera-rgb")
-    ]
-    if not streams:
-        raise ValueError("RGB unavailable in this VRS.")
-    return provider, streams[0]
-
-
-def inspect_vrs(path):
-    from projectaria_tools.core.sensor_data import TimeDomain
-
-    provider, stream = vrs_provider(path)
-    times = provider.get_timestamps_ns(stream, TimeDomain.DEVICE_TIME)
-    if not times:
-        raise ValueError("RGB stream is empty.")
-    if len(times) < 2:
-        raise ValueError("RGB requires at least two timestamped frames for timeline annotation.")
-    image, _ = provider.get_image_data_by_index(stream, 0)
-    shape = image.to_numpy_array().shape
-    return {
-        "duration_ms": (times[-1] - times[0]) / 1e6,
-        "status": "needs_preview",
-        "time_basis": "DEVICE_TIME",
-        "rgb_stream": str(stream),
-        "device_start_ns": times[0],
-        "frame_count": len(times),
-        "width": shape[1],
-        "height": shape[0],
-        "calibration_available": provider.get_device_calibration() is not None,
-        "streams": [
-            {
-                "id": str(item),
-                "label": provider.get_label_from_stream_id(item),
-                "active": provider.check_stream_is_active(item),
-            }
-            for item in provider.get_all_streams()
-        ],
     }
 
 
@@ -137,24 +87,6 @@ def nearest_index(times, requested):
 def export_frame(path, info, requested_ms, output, width):
     from PIL import Image
 
-    if path.suffix.lower() == ".vrs":
-        from projectaria_tools.core.sensor_data import TimeDomain
-
-        provider, stream = vrs_provider(path)
-        times = provider.get_timestamps_ns(stream, TimeDomain.DEVICE_TIME)
-        relative = [(time - times[0]) / 1e6 for time in times]
-        index = nearest_index(relative, requested_ms)
-        image_data, _ = provider.get_image_data_by_index(stream, index)
-        image = Image.fromarray(image_data.to_numpy_array())
-        image.thumbnail((width, width * 4))
-        image.save(output, quality=90)
-        return {
-            "actual_ms": relative[index],
-            "device_time_ns": times[index],
-            "index": index,
-            "width": image.width,
-            "height": image.height,
-        }
     times = mp4_times(str(path), info["fingerprint"])
     index = nearest_index(times, requested_ms)
     command(
@@ -190,91 +122,24 @@ def make_proxy(path, asset):
     if output.exists():
         return output
     temporary = target / "pending.mp4"
-    if path.suffix.lower() == ".vrs":
-        from PIL import Image
-        from projectaria_tools.core.sensor_data import TimeDomain
-        from .storage import atomic_json
-
-        provider, stream = vrs_provider(path)
-        times = provider.get_timestamps_ns(stream, TimeDomain.DEVICE_TIME)
-        directory = target / "images"
-        directory.mkdir(exist_ok=True)
-        try:
-            lines = ["ffconcat version 1.0"]
-            for index, stamp in enumerate(times):
-                image, _ = provider.get_image_data_by_index(stream, index)
-                frame = directory / f"{index:08d}.jpg"
-                Image.fromarray(image.to_numpy_array()).save(frame)
-                lines.append(f"file '{frame.name}'")
-                lines.append("option framerate 1000000")
-                if index + 1 < len(times):
-                    lines.append(f"duration {(times[index + 1] - stamp) / 1e9:.9f}")
-            concat = directory / "frames.txt"
-            concat.write_text("\n".join(lines))
-            command(
-                [
-                    "ffmpeg",
-                    "-v",
-                    "error",
-                    "-f",
-                    "concat",
-                    "-safe",
-                    "0",
-                    "-i",
-                    str(concat),
-                    "-fps_mode",
-                    "passthrough",
-                    "-video_track_timescale",
-                    "1000000",
-                    "-c:v",
-                    "libx264",
-                    "-pix_fmt",
-                    "yuv420p",
-                    "-movflags",
-                    "+faststart",
-                    "-y",
-                    str(temporary),
-                ]
-            )
-            decoded = mp4_times(str(temporary), str(temporary.stat().st_mtime_ns))
-            if len(decoded) != len(times) or any(
-                abs(actual - (stamp - times[0]) / 1e6) > 1 for actual, stamp in zip(decoded, times)
-            ):
-                raise ValueError(
-                    "Preview timing differs from DEVICE_TIME; preview was not published."
-                )
-            atomic_json(
-                target / "time_mapping.json",
-                {
-                    "time_basis": "DEVICE_TIME",
-                    "device_start_ns": times[0],
-                    "frames": [
-                        {"media_ms": actual, "device_ns": stamp}
-                        for actual, stamp in zip(decoded, times)
-                    ],
-                },
-            )
-        finally:
-            shutil.rmtree(directory)
-    else:
-        command(
-            [
-                "ffmpeg",
-                "-v",
-                "error",
-                "-i",
-                str(path),
-                "-c:v",
-                "libx264",
-                "-pix_fmt",
-                "yuv420p",
-                "-an",
-                "-movflags",
-                "+faststart",
-                "-y",
-                str(temporary),
-            ]
-        )
+    command(
+        [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-i",
+            str(path),
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-an",
+            "-movflags",
+            "+faststart",
+            "-y",
+            str(temporary),
+        ]
+    )
     if digest(path) != asset["hash"]:
         temporary.unlink(missing_ok=True)
         raise ValueError("Source changed during preview preparation.")

@@ -13,7 +13,7 @@ PROMPTS = Path(temporary.name) / "prompts"
 os.environ["PROMPTS_DIR"] = str(PROMPTS)
 
 from devworkspace.main import app  # noqa: E402
-from devworkspace.storage import DATA, WORK  # noqa: E402
+from devworkspace.storage import DATA, VRS, WORK  # noqa: E402
 
 
 @pytest.fixture
@@ -25,12 +25,12 @@ def client():
         with engine.begin() as connection:
             connection.execute(jobs.delete())
             connection.execute(assets.delete())
-        for path in DATA.iterdir():
+        for path in [*DATA.iterdir(), *VRS.iterdir()]:
             if path.is_dir():
                 shutil.rmtree(path)
             else:
                 path.unlink()
-        for name in ("annotations", "frames"):
+        for name in ("annotations", "frames", "exports"):
             shutil.rmtree(WORK / name, ignore_errors=True)
         shutil.rmtree(PROMPTS, ignore_errors=True)
         shutil.copytree(REPO_PROMPTS, PROMPTS)

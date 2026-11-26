@@ -9,8 +9,10 @@ from sqlalchemy import JSON, Column, Integer, MetaData, String, Table, create_en
 
 ROOT = Path(os.environ.get("WORKSPACE_ROOT", Path(__file__).resolve().parents[3])).resolve()
 DATA = ROOT / "data"
+VRS = ROOT / "vrs"
 WORK = ROOT / "workspace"
 DATA.mkdir(exist_ok=True, parents=True)
+VRS.mkdir(exist_ok=True, parents=True)
 WORK.mkdir(exist_ok=True, parents=True)
 LOCK = threading.RLock()
 engine = create_engine(f"sqlite:///{WORK / 'app.db'}", connect_args={"check_same_thread": False})
