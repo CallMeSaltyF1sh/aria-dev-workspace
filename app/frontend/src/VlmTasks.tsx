@@ -68,6 +68,7 @@ export function TasksPage() {
                   <th>Run</th>
                   <th>Recording</th>
                   <th>Prompt</th>
+                  <th>Status</th>
                   <th>Model and setup</th>
                   <th>Answers</th>
                 </tr>
@@ -86,6 +87,11 @@ export function TasksPage() {
                     </td>
                     <td className="mono small">{run.video_id}</td>
                     <td className="mono">{run.prompt_id}</td>
+                    <td>
+                      <span className="badge">
+                        {(run.status || 'completed').replaceAll('_', ' ')}
+                      </span>
+                    </td>
                     <td className="small">{setup(run)}</td>
                     <td className="small">{answers(run)}</td>
                   </tr>

@@ -68,8 +68,13 @@ export function VlmPanel({
   })
   useEffect(() => {
     // Show a run when one started here finishes; otherwise keep the run from the URL.
-    if (jobId && job.data?.status === 'completed') {
+    if (
+      jobId &&
+      ['completed', 'failed'].includes(job.data?.status || '') &&
+      job.data?.result?.id
+    ) {
       void client.invalidateQueries({ queryKey: ['vlm-runs', asset.id] })
+      void client.invalidateQueries({ queryKey: ['vlm-all-runs'] })
       setSelected(String(job.data.result?.id))
     }
   }, [jobId, job.data?.status, job.data?.result?.id, client, asset.id])
@@ -219,7 +224,8 @@ export function VlmPanel({
               }
             />
           )}
-          {(error || job.data?.status === 'failed') && (
+          {(error ||
+            (job.data?.status === 'failed' && !job.data.result?.id)) && (
             <p className="error" role="alert">
               {error || job.data?.error}
             </p>
@@ -308,6 +314,16 @@ function RunResult({
   )
   return (
     <div className="cardBody stack">
+      <div className="actions">
+        <span className="badge">
+          {(value.status || 'completed').replaceAll('_', ' ')}
+        </span>
+      </div>
+      {value.error && (
+        <p className="error" role="alert">
+          {value.error}
+        </p>
+      )}
       <p className="small muted">
         {value.counts.valid} valid · {value.counts.invalid_output} invalid
         output · {value.counts.request_failed} failed · {value.seconds}s ·
@@ -346,7 +362,29 @@ function RunResult({
                 <td className="mono">{time(w.actual_target_ms, 2)}</td>
                 <td>{human(w.target_ms) ?? '—'}</td>
                 <td>{w.label}</td>
-                <td className="small">{w.reason || w.error}</td>
+                <td className="small">
+                  {w.reason || w.error}
+                  {!!w.attempts?.length && (
+                    <details className={styles.responseDetails}>
+                      <summary>Response details</summary>
+                      {w.attempts.map((attempt, index) => (
+                        <div key={index}>
+                          <b>
+                            Attempt {index + 1} ·{' '}
+                            {attempt.status.replaceAll('_', ' ')}
+                          </b>
+                          {attempt.raw !== null &&
+                            attempt.raw !== undefined && (
+                              <pre>{attempt.raw}</pre>
+                            )}
+                          {attempt.error && (
+                            <p className="error">{attempt.error}</p>
+                          )}
+                        </div>
+                      ))}
+                    </details>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
