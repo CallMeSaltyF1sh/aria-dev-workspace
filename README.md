@@ -49,8 +49,18 @@ An empty Data Library on first launch is expected: add recordings as described b
 VLM Run reads `AIHUBMIX_API_KEY` and `VLM_MODELS` (the models offered in its dropdown; the first is the default) from `.env.local` in the repository root (ignored by Git) when the backend starts:
 
 ```sh
-cp .env.example .env.local   # then fill in AIHUBMIX_API_KEY
+test -e .env.local || cp .env.example .env.local
 ```
+
+Edit `.env.local` without replacing any other keys already in it:
+
+```dotenv
+AIHUBMIX_API_KEY=your_key_here
+VLM_MODELS=qwen3-vl-plus
+VLM_API_URL=https://aihubmix.com/v1/chat/completions
+```
+
+Use model IDs allowed by your key. Never put a real key in `.env.example`; `.env.local` is ignored by Git. Restart the backend after editing. The “API key configured” indicator checks only that a key is present, not that it is valid or has permission to use the selected model.
 
 Restart the launcher after changing it. In a recording's **VLM Run** tab, choose the garment, step and context, then click **Run VLM**. Each target point is labelled by one request carrying the target frame plus context frames from the 0.1 s frame cache (generated automatically if missing). Results are saved to `workspace/vlm/<asset_id>/<run_id>.json` and shown next to the saved human annotation. Running sends frames to the API and is billed to the key's account.
 
@@ -156,7 +166,7 @@ workspace/
 
 1. Add a recording to `data/` and click **Scan data/**. Click its row to open the detail page.
 2. In **Video & Annotation**, play or seek to an interior time, then choose **Add split point**. Editable boundaries snap to 0.1 seconds. Duplicate times do not create duplicate boundaries; video start/end cannot create additional segments.
-3. Select `P0`–`P4` or `unclear` for each interval, then click **Save**. Drafts may contain unclassified intervals. Changes are restored from the latest saved draft when reopening a recording; unsaved changes are not written to disk.
+3. Select `P0`–`P4` or `unclear` for each interval, then click **Save**. Drafts may contain unclassified intervals. Changes are restored from the latest saved draft when reopening a recording; unsaved changes are not written to disk. **Restore** is enabled only when the current annotation differs from its saved baseline (or the initial blank timeline). It discards current edits and reloads the latest saved annotation; without a saved annotation, it resets to one unlabeled interval with no split points. Restore does not change the saved file. If loading fails, current edits are retained.
 4. Open **Frames & QC** and click **Generate frames**. The whole recording is sampled at `0.0, 0.1, 0.2, …` seconds, strictly before its end. Each sample selects the nearest original frame; duplicate selections share one JPEG. The manifest retains requested times, actual times and source indices. Progress is shown, and results are paginated at 24 frames per page.
 5. Generate again with the same source/configuration to reuse an intact cache. Source changes are flagged so old results can be reviewed. Generating frames does not submit them to a VLM.
 
@@ -187,6 +197,14 @@ Choose **Data Library → Import annotations** and select a CSV or JSON file pro
 | Invalid | Duration, labels or intervals do not match the local recording. |
 
 Imported annotations are saved as new local revisions. If annotations change between preview and import, the import is refused and must be previewed again.
+
+The whole selected batch is checked before writing. Import backups and a recovery journal are saved under `workspace/annotation_imports/`. A failed write restores the affected drafts; a process interrupted before the commit marker is rolled back on backend startup. These local backups are private research data and remain outside Git.
+
+### VLM failure handling
+
+Responses must contain exactly `label` (P0–P4 or unclear) and a nonblank string `reason` of at most 2,000 characters. Invalid responses get one format retry and are recorded as `invalid_output` if still invalid; they never become unclear automatically. Each target retains its response attempts, raw output and error.
+
+Runs are saved even when no prediction is valid. VLM Tasks and recording details show `completed`, `partially completed` or `failed`; the result view exposes response details. A failed run keeps its run ID in the processing job, so it remains accessible from history. Preparation errors before requests begin remain job errors. Retries may make more requests than the target count shown before starting.
 
 ## 7. Build without the frontend development server
 

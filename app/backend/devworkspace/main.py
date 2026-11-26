@@ -40,6 +40,7 @@ from .storage import DATA, LOCK, ROOT, WORK, asset_row, assets, digest, engine, 
 @asynccontextmanager
 async def lifespan(_):
     command.upgrade(Config(str(Path(__file__).resolve().parents[1] / "alembic.ini")), "head")
+    annotation_imports.recover_pending()
     with engine.begin() as connection:
         connection.execute(
             update(jobs)

@@ -553,6 +553,23 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/{path}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** Frontend */
+    get: operations['frontend__path__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
 export type webhooks = Record<string, never>
 export interface components {
@@ -1057,6 +1074,18 @@ export interface components {
       /** Context */
       ctx?: Record<string, never>
     }
+    /** VlmAttemptOutput */
+    VlmAttemptOutput: {
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'valid' | 'invalid_output' | 'request_failed'
+      /** Raw */
+      raw?: string | null
+      /** Error */
+      error?: string | null
+    }
     /** VlmConfigOutput */
     VlmConfigOutput: {
       /** Configured */
@@ -1129,6 +1158,14 @@ export interface components {
       counts: {
         [key: string]: number
       }
+      /**
+       * Status
+       * @default completed
+       * @enum {string}
+       */
+      status: 'completed' | 'partially_completed' | 'failed'
+      /** Error */
+      error?: string | null
       /** Asset Id */
       asset_id: string
       /** Video Id */
@@ -1154,6 +1191,14 @@ export interface components {
       counts: {
         [key: string]: number
       }
+      /**
+       * Status
+       * @default completed
+       * @enum {string}
+       */
+      status: 'completed' | 'partially_completed' | 'failed'
+      /** Error */
+      error?: string | null
       /** Asset Id */
       asset_id: string
       /** Source Hash */
@@ -1193,6 +1238,14 @@ export interface components {
       counts: {
         [key: string]: number
       }
+      /**
+       * Status
+       * @default completed
+       * @enum {string}
+       */
+      status: 'completed' | 'partially_completed' | 'failed'
+      /** Error */
+      error?: string | null
     }
     /** VlmWindowOutput */
     VlmWindowOutput: {
@@ -1219,6 +1272,8 @@ export interface components {
       error?: string | null
       /** Raw */
       raw?: string | null
+      /** Attempts */
+      attempts?: components['schemas']['VlmAttemptOutput'][]
     }
   }
   responses: never
@@ -2315,6 +2370,37 @@ export interface operations {
         }
         content: {
           'application/json': unknown
+        }
+      }
+    }
+  }
+  frontend__path__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        path: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': unknown
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
         }
       }
     }

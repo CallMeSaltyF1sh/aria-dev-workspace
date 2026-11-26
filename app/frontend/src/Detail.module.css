@@ -203,6 +203,21 @@
 .pagination {
   border-top: 1px solid var(--line);
 }
+.responseDetails {
+  margin-top: 6px;
+}
+.responseDetails summary {
+  cursor: pointer;
+}
+.responseDetails pre {
+  max-width: 560px;
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 8px;
+  background: #fafafa;
+}
 .frameGrid figure {
   border: 1px solid var(--line);
   border-radius: 6px;

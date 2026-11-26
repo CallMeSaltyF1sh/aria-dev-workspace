@@ -68,11 +68,14 @@ export function Annotation({
   const client = useQueryClient()
   const [saved, setSaved] = useState(draft)
   const [saving, setSaving] = useState(false)
+  const [restoring, setRestoring] = useState(false)
   const [error, setError] = useState('')
   const [selected, setSelected] = useState<number | null>(null)
   const axis = useRef<HTMLDivElement>(null)
   const root = useRef<HTMLElement>(null)
   const dragging = useRef<{ index: number; x: number; at: number } | null>(null)
+  const operation = useRef(false)
+  const busy = saving || restoring
   const dirty = JSON.stringify(intervals) !== JSON.stringify(saved.intervals)
   useEffect(() => onDirty(dirty), [dirty, onDirty])
   useEffect(() => {
@@ -88,6 +91,8 @@ export function Annotation({
     return () => document.removeEventListener('pointerdown', clear)
   }, [])
   const save = async () => {
+    if (operation.current) return false
+    operation.current = true
     setSaving(true)
     setError('')
     try {
@@ -108,13 +113,41 @@ export function Annotation({
       setError((error as Error).message)
       return false
     } finally {
+      operation.current = false
       setSaving(false)
+    }
+  }
+  const restore = async () => {
+    if (operation.current || !dirty) return
+    operation.current = true
+    setRestoring(true)
+    setError('')
+    try {
+      await client.cancelQueries({
+        queryKey: ['annotation', draft.asset_id],
+        exact: true,
+      })
+      const value = await api<Draft>(
+        '/assets/' + draft.asset_id + '/annotation',
+      )
+      setSaved(value)
+      dispatch({ type: 'reset', intervals: value.intervals })
+      client.setQueryData(['annotation', draft.asset_id], value)
+      setSelected(null)
+      dragging.current = null
+      onDirty(false)
+      void client.invalidateQueries({ queryKey: ['library'] })
+    } catch (error) {
+      setError((error as Error).message)
+    } finally {
+      operation.current = false
+      setRestoring(false)
     }
   }
   useEffect(() => {
     registerSave(save)
     registerAdd((atMs) => {
-      if (draft.source_changed) return
+      if (draft.source_changed || operation.current) return
       const at = Math.round(atMs / 100) * 100
       const existing = intervals
         .slice(0, -1)
@@ -147,17 +180,19 @@ export function Annotation({
         <h2>Annotation</h2>
         <div className="actions">
           <span className="muted small">
-            {saving
-              ? 'Saving…'
-              : dirty
-                ? 'Unsaved'
-                : saved.revision
-                  ? 'Saved'
-                  : 'Not started'}
+            {restoring
+              ? 'Restoring…'
+              : saving
+                ? 'Saving…'
+                : dirty
+                  ? 'Unsaved'
+                  : saved.revision
+                    ? 'Saved'
+                    : 'Not started'}
           </span>
           <AnnotationExport
             assetId={draft.asset_id}
-            disabled={dirty || saving || !saved.revision}
+            disabled={dirty || busy || !saved.revision}
             disabledHint={
               dirty
                 ? 'Save changes before exporting.'
@@ -167,9 +202,16 @@ export function Annotation({
             }
           />
           <button
+            disabled={busy || !dirty}
+            onClick={() => void restore()}
+            title="Discard edits and restore the latest saved annotation. Without a saved annotation, reset to an unlabeled timeline."
+          >
+            Restore
+          </button>
+          <button
             data-delete-split
             className="danger"
-            disabled={selected === null || saving || draft.source_changed}
+            disabled={selected === null || busy || draft.source_changed}
             onClick={() => {
               if (selected !== null)
                 dispatch({ type: 'remove', index: selected })
@@ -181,7 +223,7 @@ export function Annotation({
           <button
             className="primary"
             disabled={
-              saving || draft.source_changed || (!dirty && !!saved.revision)
+              busy || draft.source_changed || (!dirty && !!saved.revision)
             }
             onClick={save}
           >
@@ -204,19 +246,6 @@ export function Annotation({
         {error && (
           <p role="alert" className="error">
             {error}
-            <button
-              onClick={() => {
-                void api<Draft>(
-                  '/assets/' + draft.asset_id + '/annotation',
-                ).then((value) => {
-                  setSaved(value)
-                  dispatch({ type: 'reset', intervals: value.intervals })
-                  setError('')
-                })
-              }}
-            >
-              Reload saved draft
-            </button>
           </p>
         )}
         <div className={styles.axisLabels}>
@@ -230,7 +259,7 @@ export function Annotation({
           onClick={(event) => {
             if (event.target === axis.current) {
               if (selected !== null) setSelected(null)
-              else if (!draft.source_changed)
+              else if (!draft.source_changed && !operation.current)
                 dispatch({ type: 'split', at: coordinate(event.clientX) })
             }
           }}
@@ -242,7 +271,7 @@ export function Annotation({
               aria-pressed={selected === index}
               className={styles.boundary}
               style={{ left: (segment.end_ms / draft.duration_ms) * 100 + '%' }}
-              disabled={draft.source_changed}
+              disabled={draft.source_changed || busy}
               onClick={(event) => {
                 event.stopPropagation()
                 setSelected(index)
@@ -310,7 +339,7 @@ export function Annotation({
                 time(segment.end_ms)
               }
               value={segment.phase || ''}
-              disabled={draft.source_changed}
+              disabled={draft.source_changed || busy}
               style={{
                 width:
                   ((segment.end_ms - segment.start_ms) / draft.duration_ms) *

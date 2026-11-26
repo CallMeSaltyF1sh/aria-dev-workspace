@@ -351,10 +351,15 @@ def submit_job(asset_id, kind, settings=None):
                 output = media.make_proxy(source_path(asset["path"], exists=True), asset)
                 result = {"path": output.relative_to(WORK).as_posix()}
             with engine.begin() as connection:
+                failed_run = kind == "vlm" and result.get("status") == "failed"
                 connection.execute(
                     update(jobs)
                     .where(jobs.c.id == job["id"])
-                    .values(status="completed", result=result)
+                    .values(
+                        status="failed" if failed_run else "completed",
+                        result=result,
+                        error=result.get("error") if failed_run else None,
+                    )
                 )
         except Exception as error:
             with engine.begin() as connection:

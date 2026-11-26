@@ -54,7 +54,7 @@ Back up `data/` **and** `workspace/` together. The database preserves IDs used b
 1. Data Library scans `data/` on entry. Use **Scan data/** after external changes. Scanning does not generate frames.
 2. Choose a folder, search or filter, and open a recording. Previous/next follows that filtered list; returning preserves the list context.
 3. In **Video & Annotation**, seek to a time and choose **Add split point**, or click the annotation axis. Drag in 0.1-second steps. Arrow keys move a focused boundary; Delete/Backspace removes it. Click elsewhere to deselect.
-4. Choose a phase for each interval, then **Save**. Drafts may contain unclassified intervals. A final short interval retains the true recording end. Deleting a boundary retains equal neighboring labels and clears unequal ones.
+4. Choose a phase for each interval, then **Save**. Drafts may contain unclassified intervals. **Restore** is enabled only when the current annotation differs from its saved baseline (or the initial blank timeline). It discards edits and reloads the latest saved annotation, or resets to one unlabeled interval without split points if none was saved. It does not write to disk; a loading failure keeps current edits. A final short interval retains the true recording end. Deleting a boundary retains equal neighboring labels and clears unequal ones.
 5. **Metadata** stores anonymous participant, trial, garment, condition, split and overlay status. These are descriptive fields; the app does not enforce participant-level data partitioning yet.
 6. **Frames & QC** prepares the entire recording at a fixed 0.1-second interval. Click **Generate frames** to start; no target time, frame count or spacing inputs are required. Progress is persisted, and results are shown 24 images per page. Identical source/configuration reuses an intact cache. Frames are never generated just by opening the page.
 
@@ -95,6 +95,14 @@ The importer refuses a changed review, changed CSV, changed recording or newer d
 - Generated `annotations_*.csv`/`annotations_*.json`, `exports/`, and the original `workspace/annotations/` are ignored by Git. Share exports separately when needed.
 - API: `GET /api/annotations/export-summary[?asset_id=...]`; `GET /api/annotations/exportable` lists eligible recordings; `GET /api/annotations/export?format=csv|json[&asset_id=...]`, where `asset_id` may repeat to export several recordings. Omitting it exports all eligible saved drafts; a selected recording without a labeled draft is rejected.
 
+## Import and VLM recovery (2026-11-26)
+
+Annotation imports preflight every selected recording before changing drafts. Originals are backed up in `workspace/annotation_imports/<transaction_id>/`, with a durable `journal.json`. A failed batch restores original bytes and removes newly created drafts; an uncommitted journal is rolled back at backend startup. Keep these private backups with the rest of workspace. This is a recoverable file transaction for the single-process local service, not a multiuser/distributed transaction.
+
+VLM responses require exactly a valid `label` and a nonblank string `reason` (maximum 2,000 characters). Every target records its output-validation attempts, raw output and errors. Bad output remains `invalid_output`, distinct from the legitimate `unclear` phase. Successful, partial and all-failed runs are persisted and listed as `completed`, `partially_completed` or `failed`; details show errors and expandable response attempts. API request failures do not erase earlier target results. Errors during preparation, before target requests begin, remain processing-job errors.
+
+Configuration is in the repository-root `.env.local`: set `AIHUBMIX_API_KEY`, optionally `VLM_MODELS` and `VLM_API_URL`, then restart the backend. Preserve existing entries when editing; do not overwrite this file with `.env.example` if it already exists. The key-presence indicator does not test credentials or authorize an API call. No real model calls are made by the regression tests.
+
 ## Validation commands
 
 ```sh
@@ -113,7 +121,7 @@ With the backend running, regenerate shared request/response types using `npm ru
 - **Verified with real MP4:** indexing both pilot files, browser playback/seek/step, frame extraction and cache reuse. The full annotation/import/delete flow is also verified with a generated test video.
 - **VRS adapter implemented, real recording pending:** RGB stream discovery, DEVICE_TIME reads, frame export, on-demand VFR preview and decoded timestamp validation. A simulated provider test checks irregular timestamp preservation; it does not verify actual Gen 2 recordings. Eye tracking, OptiTrack synchronization and sensor visualizations are outside this first stage.
 - The built-in dressing labels are provisional. Saved drafts use `dressing-v1`; immutable evaluation snapshots belong to the later Evaluation module.
-- No Gateway key is read in this stage. All study files stay local. There is no multiuser authentication; keep the service bound to loopback.
+- Data Library processing stays local. Starting VLM Run sends its selected frames to the configured API endpoint; it reads AIHUBMIX_API_KEY rather than a Gateway key. There is no multiuser authentication; keep the service bound to loopback.
 - MP4 whole-video extraction uses a one-hour subprocess limit; metadata and playback proxy operations retain the five-minute limit. Two jobs can run concurrently. Very long VRS previews may require a later streaming implementation. Batch model sampling belongs to VLM Tasks.
 
 ## Whole-video frame cache contract (2026-11-24)

@@ -9,9 +9,10 @@ import csv
 import hashlib
 import io
 import json
+import uuid
 
 from . import services
-from .storage import LOCK
+from .storage import LOCK, WORK, asset_row, atomic_bytes, atomic_json, draft_path, read_json
 
 MAX_BYTES = 20 * 1024 * 1024
 FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n")
@@ -195,13 +196,69 @@ def apply(content: bytes, token: str, overwrite: list[str]):
         value = preview(records)
         if value["token"] != token:
             raise RuntimeError("Annotations changed since the preview. Review the import again.")
-        imported = 0
-        for row in value["rows"]:
-            if row["status"] == "new" or (
-                row["status"] == "conflict" and row["asset_id"] in overwrite
-            ):
+        selected = [
+            row
+            for row in value["rows"]
+            if row["status"] == "new"
+            or (row["status"] == "conflict" and row["asset_id"] in overwrite)
+        ]
+        # Check every source before the first write, including replacements not yet scanned.
+        for row in selected:
+            services.require_current_source(asset_row(row["asset_id"]))
+        if not selected:
+            return {"imported": 0, "skipped": len(value["rows"])}
+        folder = WORK / "annotation_imports" / str(uuid.uuid4())
+        journal = {"state": "pending", "assets": []}
+        try:
+            for row in selected:
+                asset_id = row["asset_id"]
+                path = draft_path(asset_id)
+                journal["assets"].append({"asset_id": asset_id, "existed": path.exists()})
+                if path.exists():
+                    atomic_bytes(folder / f"{asset_id}.json", path.read_bytes())
+            # The journal is durable before any draft changes.
+            atomic_json(folder / "journal.json", journal)
+        except Exception as error:
+            raise RuntimeError(
+                "Could not prepare annotation backups. No annotations changed."
+            ) from error
+        try:
+            for row in selected:
                 services.save_draft(
                     row["asset_id"], row["local_revision"], records[row["index"]]["intervals"]
                 )
-                imported += 1
-    return {"imported": imported, "skipped": len(value["rows"]) - imported}
+            for row in selected:
+                services.require_current_source(asset_row(row["asset_id"]))
+            atomic_json(folder / "journal.json", journal | {"state": "committed"})
+        except Exception as error:
+            try:
+                rollback(folder, journal)
+            except Exception as recovery_error:
+                raise RuntimeError(
+                    "Import failed and rollback is incomplete. Restart the service "
+                    "to recover from workspace/annotation_imports/ backups."
+                ) from recovery_error
+            raise RuntimeError(
+                "Import failed. All affected annotations were restored; review the import again."
+            ) from error
+    return {"imported": len(selected), "skipped": len(value["rows"]) - len(selected)}
+
+
+def rollback(folder, journal):
+    for item in journal["assets"]:
+        asset_id = str(uuid.UUID(item["asset_id"]))
+        path = draft_path(asset_id)
+        if item["existed"]:
+            atomic_bytes(path, (folder / f"{asset_id}.json").read_bytes())
+        else:
+            path.unlink(missing_ok=True)
+    atomic_json(folder / "journal.json", journal | {"state": "rolled_back"})
+
+
+def recover_pending():
+    """Finish rollback after a process stopped between draft writes and commit marker."""
+    with LOCK:
+        for path in (WORK / "annotation_imports").glob("*/journal.json"):
+            journal = read_json(path)
+            if journal["state"] == "pending":
+                rollback(path.parent, journal)

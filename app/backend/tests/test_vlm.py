@@ -1,5 +1,6 @@
 import json
 import time
+import pytest
 
 from devworkspace import vlm
 from devworkspace.storage import WORK
@@ -76,6 +77,77 @@ def test_vlm_run_fails_when_every_request_fails(client, video, monkeypatch):
     job = wait(client, job)
     assert job["status"] == "failed"
     assert "HTTP 401" in job["error"]
+    assert job["result"]["status"] == "failed"
+    run_id = job["result"]["id"]
+    response = client.get(f"/api/assets/{asset['id']}/vlm/{run_id}")
+    assert response.status_code == 200
+    result = response.json()
+    assert result["status"] == "failed"
+    assert result["counts"]["valid"] == 0
+    assert all(w["status"] == "request_failed" and w["error"] for w in result["windows"])
+    assert client.get("/api/vlm/runs").json()[0]["id"] == run_id
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        None,
+        [],
+        {"label": "other", "reason": "r"},
+        {"label": "P0"},
+        {"label": "P0", "reason": None},
+        {"label": "P0", "reason": []},
+        {"label": "P0", "reason": {}},
+        {"label": "P0", "reason": 123},
+        {"label": "P0", "reason": "  "},
+        {"label": "P0", "reason": "x" * 2001},
+        {"label": "P0", "reason": "r", "extra": True},
+    ],
+)
+def test_answer_schema_rejects_invalid_fields(answer):
+    assert vlm.validate(answer) is not None
+
+
+def test_invalid_reason_is_preserved_without_breaking_result_detail(client, video, monkeypatch):
+    asset = client.post("/api/scan").json()["assets"][0]
+    monkeypatch.setattr(vlm, "api_key", lambda: "test")
+    raw = json.dumps({"label": "P0", "reason": ["wrong type"]})
+    monkeypatch.setattr(vlm, "call", lambda *_: raw)
+    url = f"/api/assets/{asset['id']}/vlm"
+    job = wait(client, client.post(url, json={"garment": "shirt", "workers": 1}).json())
+    assert job["status"] == "failed"
+    response = client.get(f"{url}/{job['result']['id']}")
+    assert response.status_code == 200
+    value = response.json()
+    assert value["counts"]["invalid_output"] == len(value["windows"])
+    assert value["status"] == "failed"
+    for window in value["windows"]:
+        assert window["label"] == "invalid_output"
+        assert window["reason"] is None
+        assert window["raw"] == raw
+        assert len(window["attempts"]) == 2
+        assert all(a["raw"] == raw and a["error"] for a in window["attempts"])
+
+
+def test_partial_failures_keep_good_windows_and_mark_partial_run(client, video, monkeypatch):
+    asset = client.post("/api/scan").json()["assets"][0]
+    monkeypatch.setattr(vlm, "api_key", lambda: "test")
+
+    def fake(_, content):
+        if any(i.get("text", "").startswith("t=0.30s [TARGET]") for i in content):
+            raise RuntimeError("temporary error")
+        return json.dumps({"label": "P2", "reason": "visible action"})
+
+    monkeypatch.setattr(vlm, "call", fake)
+    job = wait(
+        client,
+        client.post(
+            f"/api/assets/{asset['id']}/vlm", json={"garment": "shirt", "workers": 1}
+        ).json(),
+    )
+    assert job["status"] == "completed"
+    assert job["result"]["status"] == "partially_completed"
+    assert job["result"]["counts"] == {"valid": 2, "invalid_output": 0, "request_failed": 1}
 
 
 def test_models_come_from_env_and_gate_runs(client, video, monkeypatch):
