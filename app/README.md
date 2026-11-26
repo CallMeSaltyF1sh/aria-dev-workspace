@@ -46,7 +46,7 @@ The backend environment is separate from the existing research environment under
 | `workspace/frames/<asset_id>/<group_id>/` | JPEG frames plus `manifest.json`, generated only when requested. |
 | `vrs/` | Aria VRS recordings waiting to be converted on the VRS → MP4 page. |
 | `workspace/previews/<asset_id>/<source_hash>/` | Browser playback proxies. |
-| `workspace/exports/<name>/` | Eye-gaze and hand-tracking CSVs and `manifest.json` from converting `vrs/<name>.vrs`. |
+| `workspace/exports/<name>/` | `manifest.json` from converting `vrs/<name>.vrs`: options, VRS hash, time zero and output size. |
 | `workspace/migrations/pilot-csv-review.json` | Reviewable proposal for importing the original pilot labels. |
 
 Back up `data/` **and** `workspace/` together. The database preserves IDs used by annotations and frame groups. Frames can be listed again from their manifests; rebuilding a deleted database does not recover the original asset IDs automatically. Keys, recordings, derived data, test outputs and local environments are excluded from Git.
@@ -121,7 +121,7 @@ With the backend running, regenerate shared request/response types using `npm ru
 ## Verification boundaries
 
 - **Verified with real MP4:** indexing both pilot files, browser playback/seek/step, frame extraction and cache reuse. The full annotation/import/delete flow is also verified with a generated test video.
-- **VRS → MP4:** checked with a real 21 s Gen 2 profile8 recording: video timing matches DEVICE_TIME, audio, eye-gaze and hand-tracking output, and the MP4 plays and appears in Data Library. A simulated provider test checks frame timing, audio placement and CSV alignment. Long recordings have not been timed; encoding has a one-hour limit. Gaze/hand overlays on the video, OptiTrack synchronization and other sensors are not implemented.
+- **VRS → MP4:** checked with a real 21 s Gen 2 profile8 recording: video timing matches DEVICE_TIME, audio, resolution, and gaze and hand overlays drawn on the right places, and the MP4 plays and appears in Data Library. A simulated provider test checks frame timing, audio placement, scaling and overlay pixels. Long recordings have not been timed; encoding has a one-hour limit. OptiTrack synchronization and other sensors are not implemented.
 - The built-in dressing labels are provisional. Saved drafts use `dressing-v1`; immutable evaluation snapshots belong to the later Evaluation module.
 - Data Library processing stays local. Starting VLM Run sends its selected frames to the configured API endpoint; it reads AIHUBMIX_API_KEY rather than a Gateway key. There is no multiuser authentication; keep the service bound to loopback.
 - MP4 whole-video extraction uses a one-hour subprocess limit; metadata and playback proxy operations retain the five-minute limit. Two jobs can run concurrently. Batch model sampling belongs to VLM Tasks.

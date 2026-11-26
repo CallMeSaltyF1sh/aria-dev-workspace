@@ -415,23 +415,6 @@ export interface paths {
     patch?: never
     trace?: never
   }
-  '/api/vrs/{name}/files/{filename}': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /** Vrs Export File */
-    get: operations['vrs_export_file_api_vrs__name__files__filename__get']
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
   '/api/vlm/config': {
     parameters: {
       query?: never
@@ -1344,11 +1327,6 @@ export interface components {
        */
       audio: boolean
       /**
-       * Gain Db
-       * @default 30
-       */
-      gain_db: number
-      /**
        * Eye Gaze
        * @default false
        */
@@ -1358,6 +1336,8 @@ export interface components {
        * @default false
        */
       hands: boolean
+      /** Width */
+      width?: (1920 | 1280 | 960 | 640) | null
     }
     /** VrsExportOutput */
     VrsExportOutput: {
@@ -1372,8 +1352,6 @@ export interface components {
       duration_ms: number
       /** Mp4 */
       mp4: string
-      /** Files */
-      files: string[]
       /** Details */
       details: {
         [key: string]: unknown
@@ -1383,12 +1361,12 @@ export interface components {
     VrsExportSettings: {
       /** Audio */
       audio: boolean
-      /** Gain Db */
-      gain_db: number
       /** Eye Gaze */
       eye_gaze: boolean
       /** Hands */
       hands: boolean
+      /** Width */
+      width?: number | null
     }
     /** VrsFileOutput */
     VrsFileOutput: {
@@ -2209,38 +2187,6 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['JobOutput']
-        }
-      }
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['HTTPValidationError']
-        }
-      }
-    }
-  }
-  vrs_export_file_api_vrs__name__files__filename__get: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        name: string
-        filename: string
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': unknown
         }
       }
       /** @description Validation Error */

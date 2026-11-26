@@ -113,9 +113,9 @@ class FrameSetOutput(BaseModel):
 
 class VrsExportSettings(BaseModel):
     audio: bool
-    gain_db: int
     eye_gaze: bool
     hands: bool
+    width: int | None = None
 
 
 class VrsExportOutput(BaseModel):
@@ -125,7 +125,6 @@ class VrsExportOutput(BaseModel):
     time_zero_device_ns: int
     duration_ms: float
     mp4: str
-    files: list[str]
     details: dict[str, Any]
 
 

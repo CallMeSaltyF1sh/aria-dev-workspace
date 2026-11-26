@@ -384,9 +384,9 @@ def frame_file(asset_id: str, group_id: str, filename: str):
 class VrsConvertInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     audio: bool = True
-    gain_db: int = Field(default=30, ge=0, le=40)
-    eye_gaze: bool = False
-    hands: bool = False
+    eye_gaze: bool = False  # draw the gaze point onto the video
+    hands: bool = False  # draw both hands' landmarks onto the video
+    width: Literal[1920, 1280, 960, 640] | None = None  # None keeps the RGB resolution
 
 
 @app.get("/api/vrs", response_model=list[VrsFileOutput])
@@ -397,11 +397,6 @@ def vrs_files():
 @app.post("/api/vrs/{name}/convert", response_model=JobOutput)
 def vrs_convert(name: str, body: VrsConvertInput):
     return vrs_export.submit(name, body.model_dump())
-
-
-@app.get("/api/vrs/{name}/files/{filename}")
-def vrs_export_file(name: str, filename: str):
-    return FileResponse(vrs_export.file_path(name, filename), filename=filename)
 
 
 class VlmInput(BaseModel):

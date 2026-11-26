@@ -4,7 +4,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   IconEye,
   IconFileCode,
-  IconFileSpreadsheet,
   IconHandStop,
   IconMovie,
   IconRefresh,
@@ -19,26 +18,28 @@ const STAGES: Record<string, string> = {
   audio: 'Mixing audio',
   frames: 'Reading frames',
   encoding: 'Encoding MP4',
-  eye_gaze: 'Writing eye gaze',
-  hands: 'Writing hand tracking',
   validating: 'Checking source',
 }
 const running = (job?: Job | null) =>
   ['queued', 'running'].includes(job?.status || '')
 const megabytes = (bytes: number) => (bytes / 1024 / 1024).toFixed(0) + ' MB'
 
+// Aria RGB is 4:3 in every profile; null keeps the recorded resolution.
+const WIDTHS = [1920, 1280, 960, 640] as const
+type Width = (typeof WIDTHS)[number] | null
+
 type Options = {
   audio: boolean
-  gain_db: number
   eye_gaze: boolean
   hands: boolean
+  width: Width
 }
 
 const DEFAULTS: Options = {
   audio: true,
-  gain_db: 30,
   eye_gaze: true,
   hands: true,
+  width: null,
 }
 const STORAGE_KEY = 'devworkspace.vrs.options'
 
@@ -46,25 +47,25 @@ function remembered(): Options {
   try {
     const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')
     if (!value || typeof value !== 'object') return DEFAULTS
-    const gain = Number(value.gain_db)
     return {
       audio: Boolean(value.audio),
-      gain_db: Number.isFinite(gain)
-        ? Math.min(40, Math.max(0, Math.round(gain)))
-        : DEFAULTS.gain_db,
       eye_gaze: Boolean(value.eye_gaze),
       hands: Boolean(value.hands),
+      width: WIDTHS.find((w) => w === value.width) ?? null,
     }
   } catch {
     return DEFAULTS
   }
 }
 
-function summarise(options: Options) {
+function summarise(
+  options: Omit<Options, 'width'> & { width?: number | null },
+) {
   return [
-    options.audio ? `audio ${options.gain_db} dB` : 'no audio',
-    options.eye_gaze && 'eye gaze',
-    options.hands && 'hand tracking',
+    options.width ? `${options.width} px wide` : 'original size',
+    options.audio ? 'audio +30 dB' : 'no audio',
+    options.eye_gaze && 'gaze overlay',
+    options.hands && 'hand overlay',
   ]
     .filter(Boolean)
     .join(' · ')
@@ -131,7 +132,6 @@ export function VrsPage() {
     }
   }
   const exportFolder = target?.name.slice(0, -'.vrs'.length) || ''
-  const outputCount = 2 + (draft.eye_gaze ? 1 : 0) + (draft.hands ? 1 : 0)
   return (
     <>
       <h1>VRS → MP4</h1>
@@ -139,9 +139,8 @@ export function VrsPage() {
         Converts Aria recordings in the repository&apos;s <code>vrs/</code>{' '}
         folder into MP4s in <code>data/</code>, where they appear in Data
         Library for annotation. The MP4 keeps the real DEVICE_TIME frame
-        spacing. CSV times (<code>video_ms</code>) count from the first video
-        frame, the same zero as the annotation timeline. Each recording keeps
-        its own export settings; RGB video is always included.
+        spacing; eye gaze and hand tracking can be drawn onto the video. Each
+        recording keeps its own export settings; RGB video is always included.
       </p>
       <section className="card">
         <div className="cardHead">
@@ -189,16 +188,6 @@ export function VrsPage() {
                             <span className="mono">data/{file.mp4}</span>
                           )
                         )}
-                        {file.mp4_exists &&
-                          file.export?.files.map((name) => (
-                            <a
-                              key={name}
-                              href={`/api/vrs/${encodeURIComponent(file.name)}/files/${name}`}
-                              download
-                            >
-                              {name}
-                            </a>
-                          ))}
                       </div>
                       {file.export && (
                         <div className="muted" style={{ marginTop: 4 }}>
@@ -283,6 +272,34 @@ export function VrsPage() {
                       </p>
                     </div>
                   </div>
+                  <div className={styles.gainBox}>
+                    <div className={styles.gainLabel}>
+                      <span>Resolution</span>
+                      <span className={styles.gainHint}>
+                        Smaller files convert and load faster; never upscaled
+                      </span>
+                    </div>
+                    <select
+                      aria-label="Video resolution"
+                      disabled={busy}
+                      value={draft.width ?? ''}
+                      onChange={(e) =>
+                        setDraft({
+                          ...draft,
+                          width: e.target.value
+                            ? (Number(e.target.value) as Width)
+                            : null,
+                        })
+                      }
+                    >
+                      <option value="">Original</option>
+                      {WIDTHS.map((w) => (
+                        <option key={w} value={w}>
+                          {w} × {(w * 3) / 4}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div className={styles.optionItem}>
@@ -301,58 +318,12 @@ export function VrsPage() {
                         Audio track
                       </span>
                       <p className={styles.optionDesc}>
-                        All microphones mixed to mono with a limiter. Contains
-                        participants&apos; voices — include only as study
-                        consent allows.
+                        All microphones mixed to mono, boosted a fixed 30 dB
+                        with a limiter. Contains participants&apos; voices —
+                        include only as study consent allows.
                       </p>
                     </div>
                   </label>
-                  {draft.audio && (
-                    <div className={styles.gainBox}>
-                      <div className={styles.gainLabel}>
-                        <span>Audio gain</span>
-                        <span className={styles.gainHint}>
-                          0–40 dB boost for quiet Aria mics
-                        </span>
-                      </div>
-                      <div className={styles.gainControls}>
-                        <input
-                          className={styles.gainRange}
-                          type="range"
-                          aria-label="Audio gain slider (dB)"
-                          min={0}
-                          max={40}
-                          step={1}
-                          disabled={busy}
-                          value={Math.min(40, Math.max(0, draft.gain_db || 0))}
-                          onChange={(e) =>
-                            setDraft({
-                              ...draft,
-                              gain_db: Number(e.target.value),
-                            })
-                          }
-                        />
-                        <div className={styles.gainInputWrap}>
-                          <input
-                            className="mono"
-                            type="number"
-                            aria-label="Audio gain (dB)"
-                            min={0}
-                            max={40}
-                            disabled={busy}
-                            value={draft.gain_db}
-                            onChange={(e) =>
-                              setDraft({
-                                ...draft,
-                                gain_db: Number(e.target.value),
-                              })
-                            }
-                          />
-                          <span className={`${styles.gainUnit} mono`}>dB</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
 
                 <div className={styles.optionItem}>
@@ -368,11 +339,11 @@ export function VrsPage() {
                     <div className={styles.optionBody}>
                       <span className={styles.optionTitle}>
                         <IconEye size={15} />
-                        Eye gaze CSV
+                        Eye gaze overlay
                       </span>
                       <p className={styles.optionDesc}>
-                        Yaw/pitch, depth, 3D CPF gaze point &amp; blink flags
-                        aligned to <code>video_ms</code>.
+                        Burns a red circle into the video where the wearer is
+                        looking, from the gaze sample nearest each frame.
                       </p>
                     </div>
                   </label>
@@ -391,11 +362,11 @@ export function VrsPage() {
                     <div className={styles.optionBody}>
                       <span className={styles.optionTitle}>
                         <IconHandStop size={15} />
-                        Hand tracking CSV
+                        Hand tracking overlay
                       </span>
                       <p className={styles.optionDesc}>
-                        Confidence, wrist, palm &amp; 21 landmark positions per
-                        hand aligned to <code>video_ms</code>.
+                        Burns each tracked hand&apos;s 21-point skeleton into
+                        the video: left hand green, right hand blue.
                       </p>
                     </div>
                   </label>
@@ -406,7 +377,7 @@ export function VrsPage() {
             <div className={styles.outputBox}>
               <div className={styles.sectionLabel} style={{ marginBottom: 0 }}>
                 <span>Output files</span>
-                <span className="mono">{outputCount} files</span>
+                <span className="mono">2 files</span>
               </div>
               <ul className={styles.outputList}>
                 <li className={styles.outputItem}>
@@ -422,25 +393,10 @@ export function VrsPage() {
                     <strong>manifest.json</strong>
                   </span>
                 </li>
-                {draft.eye_gaze && (
-                  <li className={styles.outputItem}>
-                    <IconFileSpreadsheet size={14} />
-                    <span className={`${styles.outputPath} mono`}>
-                      workspace/exports/{exportFolder}/
-                      <strong>eye_gaze.csv</strong>
-                    </span>
-                  </li>
-                )}
-                {draft.hands && (
-                  <li className={styles.outputItem}>
-                    <IconFileSpreadsheet size={14} />
-                    <span className={`${styles.outputPath} mono`}>
-                      workspace/exports/{exportFolder}/
-                      <strong>hand_tracking.csv</strong>
-                    </span>
-                  </li>
-                )}
               </ul>
+              <p className="muted small" style={{ margin: 0 }}>
+                {summarise(draft)}
+              </p>
             </div>
 
             {error && (

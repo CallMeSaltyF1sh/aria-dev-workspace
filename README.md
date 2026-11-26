@@ -2,7 +2,7 @@
 
 A local workspace for reviewing Project Aria recordings, annotating dressing phases and preparing timestamped frames for VLM experiments.
 
-**Available now:** Data Library, MP4 playback, timeline annotation, full-video frame extraction, CSV/JSON annotation export and import, **VRS → MP4** conversion (with optional audio, eye-gaze and hand-tracking data), and a single-recording **VLM Run** (sliding-window phase labels through the AIHubMix API) with versioned prompts in **Prompt Library**; **VLM Tasks** lists every run across recordings and opens each one in its recording. Running several recordings at once and Evaluation are placeholders for later development. No GPU is required; only VLM Run needs an API key.
+**Available now:** Data Library, MP4 playback, timeline annotation, full-video frame extraction, CSV/JSON annotation export and import, **VRS → MP4** conversion (choice of resolution, optional audio, and eye-gaze and hand-tracking overlays drawn onto the video), and a single-recording **VLM Run** (sliding-window phase labels through the AIHubMix API) with versioned prompts in **Prompt Library**; **VLM Tasks** lists every run across recordings and opens each one in its recording. Running several recordings at once and Evaluation are placeholders for later development. No GPU is required; only VLM Run needs an API key.
 
 Each teammate runs their own local instance. Research recordings, frames, annotations, databases and credentials are not included in the repository.
 
@@ -149,9 +149,7 @@ workspace/
             └── preview.mp4                  On-demand browser playback proxy
 └── exports/
     └── <name>/                              One folder per converted VRS
-        ├── eye_gaze.csv                     Optional
-        ├── hand_tracking.csv                Optional
-        └── manifest.json                    Options, VRS hash, time zero
+        └── manifest.json                    Options, VRS hash, time zero, size
 ```
 
 `asset_id` is a local recording ID stored in `app.db`. `set_id` identifies an extraction configuration and source hash; frame caches are not named after the source video's filename.
@@ -163,7 +161,7 @@ workspace/
 | Click **Save** in Annotation | `workspace/annotations/<asset_id>/draft.json` |
 | Click **Generate frames** | JPEGs and manifest in `workspace/frames/<asset_id>/<set_id>/` |
 | Prepare a playback preview | Proxy in `workspace/previews/…` |
-| Click **Convert** on VRS → MP4 | `data/<name>.mp4`, plus CSVs in `workspace/exports/<name>/` |
+| Click **Convert** on VRS → MP4 | `data/<name>.mp4`, plus `workspace/exports/<name>/manifest.json` |
 | Export CSV/JSON | Browser download; choose where to save it |
 
 **Back up `data/` and the entire `workspace/` together.** Stop the app before making a simple file-copy backup. Do not delete `app.db` to reset a view: rescanning identical videos into a new database generates new asset IDs, so existing annotation/cache folders will not automatically reconnect. A single `draft.json` copied to another computer is not sufficient to associate it with a freshly scanned recording.
@@ -183,11 +181,12 @@ MP4 playback and extraction are verified. Start with an MP4 when checking a new 
 Copy Aria `.vrs` files into the repository's `vrs/` folder (created on first start, ignored by Git) and open **VRS → MP4** in the sidebar; `vrs/` in Data Library's Folders panel also jumps straight to it. Click **Convert** on a recording and confirm its export options in the dialog: they belong to that recording, and the next dialog starts from the previous choices. The MP4 is written to `data/<name>.mp4`, appears in Data Library and is annotated like any other MP4. The page never overwrites an existing MP4: to convert again, delete or rename the MP4 in Data Library first. Each converted row shows the options that produced it, read from its manifest.
 
 - **Video:** always included. Every RGB frame keeps its real DEVICE_TIME spacing (10 fps for profile8, 30 fps for profile10).
-- **Audio track:** all microphone channels mixed to mono, each sample placed at its capture time, with a gain (default 30 dB) followed by a limiter. Aria microphones record very quietly.
-- **Eye gaze CSV:** one row per gaze sample (30 Hz): yaw/pitch in radians, depth and the gaze point in CPF coordinates in metres, validity flags and blinks.
-- **Hand tracking CSV:** one row per sample (30 Hz); for each hand, confidence plus wrist, palm and 21 landmark positions in device coordinates in metres. An untracked hand leaves its columns empty.
+- **Resolution:** original (2560 × 1920 for profile8, 2016 × 1512 for profile10) or 1920, 1280, 960 or 640 pixels wide, keeping 4:3. A recording is never upscaled.
+- **Audio track:** all microphone channels mixed to mono, each sample placed at its capture time, with a fixed 30 dB gain followed by a limiter. Aria microphones record very quietly.
+- **Eye gaze overlay:** a red circle drawn where the wearer is looking. The on-device gaze point is projected into the RGB image with the recording's camera calibration.
+- **Hand tracking overlay:** each tracked hand's 21-point skeleton, left hand green and right hand blue, projected the same way. An untracked hand is not drawn.
 
-The CSVs are saved in `workspace/exports/<name>/` and can be downloaded from the page. Their `video_ms` counts from the first video frame, the same zero as the MP4 and its annotation timeline; `device_time_ns` keeps the raw DEVICE_TIME. Samples recorded just before the first or after the last frame are kept, so `video_ms` can be negative or exceed the video length. A recording without a requested stream (for example hand tracking under `profile8_ml_et`) fails with a message and writes nothing. Converting a 21-second profile8 recording takes about a minute. The audio track contains participants' voices; share it only as your study's consent allows.
+Overlays are burned into the MP4's pixels; there is no separate data file. Each frame uses the gaze and hand samples (30 Hz) nearest to it, and draws nothing when none is within 50 ms or the gaze is marked invalid. Record **RGB overlay → annotated** in the recording's Metadata if the video should not be treated as clean footage. A recording without a requested stream (for example hand tracking under `profile8_ml_et`) fails with a message and writes nothing. A 21-second profile8 recording converts in about 30 seconds at 1280 px and about a minute at full size. The audio track contains participants' voices; share it only as your study's consent allows.
 
 Earlier versions also indexed `.vrs` files in `data/`. Move them to `vrs/`; their old Data Library rows then show as missing.
 

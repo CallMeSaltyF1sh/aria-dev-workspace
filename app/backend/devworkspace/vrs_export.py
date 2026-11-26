@@ -1,11 +1,11 @@
 """VRS → MP4: convert recordings in vrs/ into MP4s in data/, where they are annotated.
 
-The MP4 holds the RGB video at its real DEVICE_TIME frame spacing, optionally with a mono
-audio track. Eye-gaze and hand-tracking CSVs go to workspace/exports/<name>/. Every time is
-relative to the first RGB frame, which is time zero of the MP4 and its annotation timeline.
+The MP4 holds the RGB video at its real DEVICE_TIME frame spacing, optionally scaled down,
+with an optional mono audio track and optional eye-gaze and hand-tracking overlays drawn
+onto the frames. MP4 time zero is the first RGB frame. The settings and source identity are
+recorded in workspace/exports/<name>/manifest.json.
 """
 
-import csv
 import json
 import os
 import shutil
@@ -20,9 +20,24 @@ from sqlalchemy import insert, select, update
 from . import media, services
 from .storage import DATA, LOCK, VRS, WORK, atomic_json, digest, engine, jobs, read_json
 
-EXPORT_VERSION = 2
+EXPORT_VERSION = 3
 SIDES = ("left", "right")
-LANDMARKS = 21
+# Fixed boost for the very quiet Aria microphones, followed by a limiter.
+GAIN_DB = 30
+# A tracking sample further than this from a video frame is not drawn on it.
+MATCH_NS = 50_000_000
+GAZE_COLOR = (239, 68, 68)
+HAND_COLORS = {"left": (34, 197, 94), "right": (59, 130, 246)}
+# Aria hand landmarks: 0–4 fingertips (thumb..pinky), 5 wrist, 6–7 thumb intermediate/distal,
+# 8–19 proximal/intermediate/distal joints of index..pinky, 20 palm centre.
+BONES = [
+    (5, 6), (6, 7), (7, 0),
+    (5, 8), (8, 9), (9, 10), (10, 1),
+    (5, 11), (11, 12), (12, 13), (13, 2),
+    (5, 14), (14, 15), (15, 16), (16, 3),
+    (5, 17), (17, 18), (18, 19), (19, 4),
+    (8, 11), (11, 14), (14, 17),
+]  # fmt: skip
 
 
 def vrs_provider(path):
@@ -87,82 +102,108 @@ def audio_wav(provider, rgb0, duration_ms, output):
     return {"sample_rate": rate, "source_channels": channels}
 
 
-def times(provider, label, rgb0):
+def projector(provider):
+    """Project device-frame or CPF-frame points (metres) to full-size RGB pixels."""
+    calibration = provider.get_device_calibration()
+    if calibration is None:
+        raise ValueError("This VRS has no calibration, so overlays cannot be drawn.")
+    camera = calibration.get_camera_calib("camera-rgb")
+    camera_from_device = camera.get_transform_device_camera().inverse().to_matrix()
+    device_from_cpf = calibration.get_transform_device_cpf().to_matrix()
+
+    def project(points, from_cpf=False):
+        points = np.asarray(points, dtype=np.float64).reshape(-1, 3)
+        if from_cpf:
+            points = points @ device_from_cpf[:3, :3].T + device_from_cpf[:3, 3]
+        points = points @ camera_from_device[:3, :3].T + camera_from_device[:3, 3]
+        pixels = [camera.project(point) for point in points]
+        return [None if pixel is None else (float(pixel[0]), float(pixel[1])) for pixel in pixels]
+
+    return project
+
+
+def samples(provider, label, read):
+    """DEVICE_TIME stamps and a reader for one tracking stream."""
     from projectaria_tools.core.sensor_data import TimeDomain
 
     source = stream(provider, label)
     stamps = provider.get_timestamps_ns(source, TimeDomain.DEVICE_TIME)
-    return source, [(index, stamp, (stamp - rgb0) / 1e6) for index, stamp in enumerate(stamps)]
+    return stamps, lambda index: read(source, index)
 
 
-def gaze_csv(provider, rgb0, output):
-    source, rows = times(provider, "eyegaze", rgb0)
-    with output.open("w", newline="") as file:
-        writer = csv.writer(file)
-        writer.writerow(
-            [
-                "device_time_ns",
-                "video_ms",
-                "yaw_rad",
-                "pitch_rad",
-                "depth_m",
-                "gaze_valid",
-                "point_x_cpf_m",
-                "point_y_cpf_m",
-                "point_z_cpf_m",
-                "point_valid",
-                "left_blink",
-                "right_blink",
-            ]
-        )
-        for index, stamp, video_ms in rows:
-            gaze = provider.get_eye_gaze_data_by_index(source, index)
-            point = list(gaze.spatial_gaze_point_in_cpf)
-            writer.writerow(
-                [stamp, round(video_ms, 3), gaze.yaw, gaze.pitch, gaze.depth]
-                + [int(gaze.combined_gaze_valid), *point, int(gaze.spatial_gaze_point_valid)]
-                + [int(gaze.vergence.left_blink), int(gaze.vergence.right_blink)]
-            )
-    return len(rows)
+def nearest(stamps, stamp):
+    index = media.nearest_index(stamps, stamp)
+    return index if abs(stamps[index] - stamp) <= MATCH_NS else None
 
 
-def hand_csv(provider, rgb0, output):
-    """One row per sample; a hand that is not tracked leaves its columns empty."""
-    source, rows = times(provider, "handtracking", rgb0)
-    header = ["device_time_ns", "video_ms"]
-    for side in SIDES:
-        header += [f"{side}_confidence"]
-        for part in ["wrist", "palm", *(f"lm{n:02d}" for n in range(LANDMARKS))]:
-            header += [f"{side}_{part}_{axis}_m" for axis in "xyz"]
-    with output.open("w", newline="") as file:
-        writer = csv.writer(file)
-        writer.writerow(header)
-        for index, stamp, video_ms in rows:
-            pose = provider.get_hand_pose_data_by_index(source, index)
-            row = [stamp, round(video_ms, 3)]
+def overlays(provider, settings):
+    """Return draw(image, stamp, scale) for the requested overlays, or None."""
+    from PIL import ImageDraw
+
+    if not settings["eye_gaze"] and not settings["hands"]:
+        return None
+    project = projector(provider)
+    gaze = hands = None
+    if settings["eye_gaze"]:
+        gaze = samples(provider, "eyegaze", provider.get_eye_gaze_data_by_index)
+    if settings["hands"]:
+        hands = samples(provider, "handtracking", provider.get_hand_pose_data_by_index)
+
+    def draw(image, stamp, scale):
+        pen = ImageDraw.Draw(image)
+        line = max(2, round(image.width / 500))
+        if hands and (index := nearest(hands[0], stamp)) is not None:
+            pose = hands[1](index)
             for side in SIDES:
                 hand = getattr(pose, f"{side}_hand")
                 if hand is None:
-                    row += [""] * (1 + 3 * (LANDMARKS + 2))
                     continue
-                points = [hand.get_wrist_position_device(), hand.get_palm_position_device()]
-                points += list(hand.landmark_positions_device)
-                row += [hand.confidence] + [float(v) for point in points for v in point]
-            writer.writerow(row)
-    return len(rows)
+                points = project(hand.landmark_positions_device)
+                points = [None if p is None else (p[0] * scale, p[1] * scale) for p in points]
+                color = HAND_COLORS[side]
+                for a, b in BONES:
+                    if points[a] and points[b]:
+                        pen.line([points[a], points[b]], fill=color, width=line)
+                for point in filter(None, points):
+                    r = line * 1.5
+                    pen.ellipse(
+                        [point[0] - r, point[1] - r, point[0] + r, point[1] + r], fill=color
+                    )
+        if gaze and (index := nearest(gaze[0], stamp)) is not None:
+            value = gaze[1](index)
+            if value.combined_gaze_valid and value.spatial_gaze_point_valid:
+                [point] = project(value.spatial_gaze_point_in_cpf, from_cpf=True)
+                if point:
+                    x, y, r = point[0] * scale, point[1] * scale, image.width / 40
+                    pen.ellipse([x - r, y - r, x + r, y + r], outline=GAZE_COLOR, width=line * 2)
+                    pen.ellipse([x - line, y - line, x + line, y + line], fill=GAZE_COLOR)
+
+    return draw
 
 
 def video(provider, rgb, stamps, folder, audio, settings, progress):
     """Encode every RGB frame with its real duration, so MP4 time = DEVICE_TIME - first frame."""
     from PIL import Image
 
+    draw = overlays(provider, settings)
     images = folder / "images"
     images.mkdir()
     lines = ["ffconcat version 1.0"]
+    size = None
     for index, stamp in enumerate(stamps):
         image, _ = provider.get_image_data_by_index(rgb, index)
+        image = Image.fromarray(image.to_numpy_array()).convert("RGB")
+        scale = 1.0
+        if settings["width"] and settings["width"] < image.width:
+            scale = settings["width"] / image.width
+            # Even dimensions for yuv420p.
+            height = round(image.height * scale / 2) * 2
+            image = image.resize((settings["width"], height), Image.LANCZOS)
+        size = image.size
+        if draw:
+            draw(image, stamp, scale)
         frame = images / f"{index:08d}.jpg"
-        Image.fromarray(image.to_numpy_array()).save(frame, quality=95)
+        image.save(frame, quality=95)
         lines += [f"file '{frame.name}'", "option framerate 1000000"]
         if index + 1 < len(stamps):
             lines.append(f"duration {(stamps[index + 1] - stamp) / 1e9:.9f}")
@@ -173,7 +214,7 @@ def video(provider, rgb, stamps, folder, audio, settings, progress):
     arguments = ["ffmpeg", "-v", "error", "-f", "concat", "-safe", "0"]
     arguments += ["-i", str(images / "frames.txt")]
     if audio:
-        filters = f"highpass=f=80,volume={settings['gain_db']}dB,alimiter=limit=0.89:level=disabled"
+        filters = f"highpass=f=80,volume={GAIN_DB}dB,alimiter=limit=0.89:level=disabled"
         arguments += ["-i", str(audio), "-map", "0:v", "-map", "1:a", "-af", filters]
         arguments += ["-c:a", "aac", "-b:a", "192k"]
     arguments += ["-fps_mode", "passthrough", "-video_track_timescale", "1000000"]
@@ -184,7 +225,7 @@ def video(provider, rgb, stamps, folder, audio, settings, progress):
     expected = [(stamp - stamps[0]) / 1e6 for stamp in stamps]
     if len(decoded) != len(expected) or any(abs(a - b) > 1 for a, b in zip(decoded, expected)):
         raise ValueError("MP4 timing differs from DEVICE_TIME; nothing was saved.")
-    return output
+    return output, size
 
 
 def convert(name, settings, progress=lambda *_: None):
@@ -201,23 +242,16 @@ def convert(name, settings, progress=lambda *_: None):
         if len(stamps) < 2:
             raise ValueError("The RGB stream needs at least two frames.")
         rgb0, duration_ms = stamps[0], (stamps[-1] - stamps[0]) / 1e6
-        details, files, wav = {}, [], None
+        details, wav = {}, None
         if settings["audio"]:
             progress(0, 0, "audio")
             wav = temporary / "audio.wav"
             details["audio"] = audio_wav(provider, rgb0, duration_ms, wav)
-            details["audio"]["gain_db"] = settings["gain_db"]
-        output = video(provider, rgb, stamps, temporary, wav, settings, progress)
+            details["audio"]["gain_db"] = GAIN_DB
+        output, size = video(provider, rgb, stamps, temporary, wav, settings, progress)
+        details["width"], details["height"] = size
         if wav:
             wav.unlink()
-        if settings["eye_gaze"]:
-            progress(0, 0, "eye_gaze")
-            details["eye_gaze_rows"] = gaze_csv(provider, rgb0, temporary / "eye_gaze.csv")
-            files.append("eye_gaze.csv")
-        if settings["hands"]:
-            progress(0, 0, "hands")
-            details["hand_rows"] = hand_csv(provider, rgb0, temporary / "hand_tracking.csv")
-            files.append("hand_tracking.csv")
         progress(0, 0, "validating")
         if digest(path) != source_hash:
             raise ValueError("The VRS changed during conversion; nothing was saved.")
@@ -230,7 +264,6 @@ def convert(name, settings, progress=lambda *_: None):
             "time_zero_device_ns": rgb0,
             "duration_ms": duration_ms,
             "mp4": target.name,
-            "files": files,
             "details": details,
             "export_version": EXPORT_VERSION,
         }
@@ -332,14 +365,3 @@ def listing():
             }
         )
     return found
-
-
-def file_path(name, filename):
-    if "/" in name or "\\" in name or not name.lower().endswith(".vrs"):
-        raise FileNotFoundError("Export not found.")
-    folder = export_folder(name)
-    if not (folder / "manifest.json").exists():
-        raise FileNotFoundError("Export not found.")
-    if filename not in read_json(folder / "manifest.json")["files"]:
-        raise FileNotFoundError("Export file not found.")
-    return folder / filename

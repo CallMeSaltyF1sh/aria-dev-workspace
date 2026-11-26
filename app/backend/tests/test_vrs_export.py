@@ -1,6 +1,5 @@
 """VRS → MP4 with a simulated provider; the real-recording check is done by hand."""
 
-import csv
 import json
 import subprocess
 import time
@@ -34,7 +33,7 @@ class Provider:
         return {"rgb": RGB, "gaze": GAZE, "hands": HANDS}[stream]
 
     def get_image_data_by_index(self, *_):
-        return SimpleNamespace(to_numpy_array=lambda: np.zeros((48, 64, 3), np.uint8)), None
+        return SimpleNamespace(to_numpy_array=lambda: np.zeros((960, 1280, 3), np.uint8)), None
 
     def get_audio_configuration(self, _):
         return SimpleNamespace(sample_rate=RATE, num_channels=CHANNELS)
@@ -67,8 +66,16 @@ class Provider:
         return SimpleNamespace(left_hand=None if index == 0 else hand, right_hand=hand)
 
 
+def project(points, from_cpf=False):
+    """Stand-in for the RGB calibration: gaze lands in the centre, landmark n at x=100+10n."""
+    if from_cpf:
+        return [(640.0, 480.0)]
+    return [(100.0 + 10 * n, 800.0) for n in range(len(points))]
+
+
 def vrs_file(monkeypatch, name="session.vrs"):
     monkeypatch.setattr(vrs_export, "vrs_provider", lambda _: (Provider(), "rgb"))
+    monkeypatch.setattr(vrs_export, "projector", lambda _: project)
     (VRS / name).write_bytes(b"simulated provider input")
     return name
 
@@ -85,14 +92,25 @@ def finish(client, name, settings):
     raise AssertionError("Conversion did not finish.")
 
 
-def test_vrs_converts_into_data_and_aligns_audio_and_csvs(client, monkeypatch):
+def first_frame(video, width, height):
+    raw = subprocess.run(
+        ["ffmpeg", "-v", "error", "-i", str(video), "-frames:v", "1"]
+        + ["-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+        capture_output=True,
+        check=True,
+    ).stdout
+    return np.frombuffer(raw, np.uint8).reshape(height, width, 3).astype(int)
+
+
+def test_vrs_converts_into_data_with_audio_overlays_and_resolution(client, monkeypatch):
     name = vrs_file(monkeypatch)
-    job = finish(client, name, {"audio": True, "gain_db": 0, "eye_gaze": True, "hands": True})
+    settings = {"audio": True, "eye_gaze": True, "hands": True, "width": 640}
+    job = finish(client, name, settings)
     assert job["status"] == "completed", job["error"]
     manifest = job["result"]
     assert manifest["mp4"] == "session.mp4"
-    assert manifest["files"] == ["eye_gaze.csv", "hand_tracking.csv"]
     assert manifest["time_zero_device_ns"] == BASE
+    assert (manifest["details"]["width"], manifest["details"]["height"]) == (640, 480)
 
     video = DATA / "session.mp4"
     streams = json.loads(
@@ -103,34 +121,31 @@ def test_vrs_converts_into_data_and_aligns_audio_and_csvs(client, monkeypatch):
         ).stdout
     )["streams"]
     assert sorted(s["codec_type"] for s in streams) == ["audio", "video"]
+    picture = next(s for s in streams if s["codec_type"] == "video")
+    assert (picture["width"], picture["height"]) == (640, 480)
     assert media.mp4_times(str(video), "check") == [0, 100, 200, 300]
     audio = next(s for s in streams if s["codec_type"] == "audio")
     assert abs(float(audio["duration"]) - 0.3) < 0.1
 
+    # Projected pixels are scaled with the frame: gaze (640, 480) -> (320, 240).
+    frame = first_frame(video, 640, 480)
+    red, green, blue = frame[240, 320]
+    assert red > 150 and red > green + 60 and red > blue + 60
+    # The first hand sample tracks only the right hand (blue); its wrist, landmark 5,
+    # is drawn at (150, 800) -> (75, 400). The left hand (green) is untracked.
+    red, green, blue = frame[400, 75]
+    assert blue > 150 and blue > red + 60
+    greenish = (frame[..., 1] > frame[..., 0] + 60) & (frame[..., 1] > frame[..., 2] + 30)
+    assert not greenish.any()
+
     # The MP4 is in Data Library, ready to annotate.
     library = client.get("/api/library").json()["assets"]
     assert [a["path"] for a in library] == ["session.mp4"]
-
-    folder = WORK / "exports" / "session"
-    with (folder / "eye_gaze.csv").open() as file:
-        gaze = list(csv.DictReader(file))
-    assert [row["device_time_ns"] for row in gaze] == [str(t) for t in GAZE]
-    assert [row["video_ms"] for row in gaze] == ["10.0", "150.0"]
-    assert [row["right_blink"] for row in gaze] == ["0", "1"]
-
-    with (folder / "hand_tracking.csv").open() as file:
-        hands = list(csv.DictReader(file))
-    assert [row["video_ms"] for row in hands] == ["20.0", "180.0"]
-    assert hands[0]["left_confidence"] == "" and hands[0]["right_wrist_x_m"] == "1.0"
-    assert hands[1]["left_lm20_x_m"] == "0.2"
-
     [listed] = client.get("/api/vrs").json()
     assert listed["mp4_exists"] and listed["mp4_asset_id"] == library[0]["id"]
-    assert listed["export"]["files"] == manifest["files"]
+    assert listed["export"]["settings"] == settings
     assert listed["job"]["status"] == "completed"
-    download = client.get(f"/api/vrs/{name}/files/eye_gaze.csv")
-    assert download.status_code == 200 and "attachment" in download.headers["content-disposition"]
-    assert client.get(f"/api/vrs/{name}/files/manifest.json").status_code == 404
+    assert (WORK / "exports" / "session" / "manifest.json").exists()
 
     # Never overwrite an MP4 that may already be annotated.
     again = client.post(f"/api/vrs/{name}/convert", json={})
@@ -147,11 +162,13 @@ def test_audio_mix_is_placed_from_first_rgb_frame(tmp_path):
     assert len(samples) == 2400 and (samples == 350).all()
 
 
-def test_vrs_video_only_and_missing_stream(client, monkeypatch):
+def test_vrs_plain_video_keeps_resolution_and_missing_stream_fails(client, monkeypatch):
     name = vrs_file(monkeypatch)
     job = finish(client, name, {"audio": False, "eye_gaze": False, "hands": False})
     assert job["status"] == "completed", job["error"]
-    assert job["result"]["files"] == []
+    assert job["result"]["settings"]["width"] is None
+    assert (job["result"]["details"]["width"], job["result"]["details"]["height"]) == (1280, 960)
+    assert first_frame(DATA / "session.mp4", 1280, 960).max() < 30
     other = vrs_file(monkeypatch, "other.vrs")
     monkeypatch.setattr(Provider, "labels", {})
     job = finish(client, other, {"audio": False, "eye_gaze": True, "hands": False})
@@ -162,6 +179,7 @@ def test_vrs_video_only_and_missing_stream(client, monkeypatch):
 def test_vrs_names_are_checked_and_library_is_mp4_only(client, video):
     assert client.post("/api/vrs/missing.vrs/convert", json={}).status_code == 404
     assert client.post("/api/vrs/notes.txt/convert", json={}).status_code == 400
+    assert client.post("/api/vrs/x.vrs/convert", json={"width": 1000}).status_code == 422
     assert client.post("/api/vrs/..%2Fdata%2Fx.vrs/convert", json={}).status_code in {400, 404}
     (DATA / "stray.vrs").write_bytes(b"not for annotation")
     services.scan()
