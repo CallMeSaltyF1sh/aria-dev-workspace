@@ -2,7 +2,7 @@
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class MediaInfo(BaseModel):
@@ -177,6 +177,8 @@ class VlmRunSummary(BaseModel):
     settings: dict[str, Any]
     seconds: float
     counts: dict[str, int]
+    status: Literal["completed", "partially_completed", "failed"] = "completed"
+    error: str | None = None
 
 
 class VlmRunListItem(VlmRunSummary):
@@ -184,6 +186,12 @@ class VlmRunListItem(VlmRunSummary):
     video_id: str
     prompt_id: str
     prompt_hash: str
+
+
+class VlmAttemptOutput(BaseModel):
+    status: Literal["valid", "invalid_output", "request_failed"]
+    raw: str | None = None
+    error: str | None = None
 
 
 class VlmWindowOutput(BaseModel):
@@ -197,6 +205,7 @@ class VlmWindowOutput(BaseModel):
     reason: str | None = None
     error: str | None = None
     raw: str | None = None
+    attempts: list[VlmAttemptOutput] = Field(default_factory=list)
 
 
 class VlmPhaseOutput(BaseModel):
