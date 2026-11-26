@@ -75,11 +75,15 @@ def digest(path: Path) -> str:
 
 
 def atomic_json(path: Path, value):
+    atomic_bytes(path, json.dumps(value, ensure_ascii=False, indent=2).encode("utf-8"))
+
+
+def atomic_bytes(path: Path, value: bytes):
     path.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary = tempfile.mkstemp(prefix=".pending-", dir=path.parent)
     try:
-        with os.fdopen(descriptor, "w") as stream:
-            json.dump(value, stream, ensure_ascii=False, indent=2)
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(value)
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(temporary, path)
