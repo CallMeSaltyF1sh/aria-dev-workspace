@@ -118,7 +118,7 @@ export function Annotation({
     }
   }
   const restore = async () => {
-    if (operation.current) return
+    if (operation.current || !dirty) return
     operation.current = true
     setRestoring(true)
     setError('')
@@ -202,7 +202,7 @@ export function Annotation({
             }
           />
           <button
-            disabled={busy}
+            disabled={busy || !dirty}
             onClick={() => void restore()}
             title="Discard edits and restore the latest saved annotation. Without a saved annotation, reset to an unlabeled timeline."
           >
