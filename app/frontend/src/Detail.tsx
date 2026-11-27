@@ -9,8 +9,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   IconArrowLeft,
   IconArrowRight,
+  IconPlayerPause,
   IconPlayerPlay,
-  IconPlus,
+  IconScissors,
 } from '@tabler/icons-react'
 import {
   api,
@@ -117,6 +118,76 @@ export function DetailPage({
   useEffect(() => {
     if (tab !== 'video') video.current?.pause()
   }, [tab])
+  const seek = useCallback(
+    (ms: number) => {
+      const duration = asset.data?.info.duration_ms || 0
+      if (video.current)
+        video.current.currentTime = Math.max(
+          0,
+          Math.min(duration / 1000, ms / 1000),
+        )
+    },
+    [asset.data?.info.duration_ms],
+  )
+  const step = useCallback(
+    (direction: number) => {
+      const timestamps = times.data
+      if (!timestamps) return
+      const position = (video.current?.currentTime || 0) * 1000
+      let nearest = 0
+      timestamps.forEach((t, i) => {
+        if (Math.abs(t - position) < Math.abs(timestamps[nearest] - position))
+          nearest = i
+      })
+      seek(
+        timestamps[
+          Math.max(0, Math.min(timestamps.length - 1, nearest + direction))
+        ],
+      )
+    },
+    [seek, times.data],
+  )
+  useEffect(() => {
+    if (tab !== 'video' || !asset.data || !annotation.data) return
+    const onKey = (event: KeyboardEvent) => {
+      if (blocker.state === 'blocked') return
+      const target = event.target as HTMLElement | null
+      if (
+        target?.closest(
+          'input,textarea,select,[contenteditable="true"],[role="dialog"]',
+        )
+      )
+        return
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault()
+        void save.current()
+        return
+      }
+      if (event.metaKey || event.ctrlKey || event.altKey) return
+      if (event.key === ' ') {
+        if (target?.closest('button,a')) return
+        event.preventDefault()
+        if (video.current?.paused) {
+          void video.current.play().catch((e) => setError(e.message))
+        } else {
+          video.current?.pause()
+        }
+      } else if (event.key === ',') {
+        event.preventDefault()
+        video.current?.pause()
+        step(-1)
+      } else if (event.key === '.') {
+        event.preventDefault()
+        video.current?.pause()
+        step(1)
+      } else if (event.key === 's' || event.key === 'S') {
+        event.preventDefault()
+        addSplit.current((video.current?.currentTime || 0) * 1000)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [annotation.data, asset.data, blocker.state, step, tab])
   // Initialize the editor from the latest disk-backed response, never an older cached draft.
   if (
     asset.isPending ||
@@ -132,55 +203,56 @@ export function DetailPage({
     )
   const item = asset.data!,
     draft = annotation.data!
-  const seek = (ms: number) => {
-    if (video.current)
-      video.current.currentTime = Math.max(
-        0,
-        Math.min((item.info.duration_ms || 0) / 1000, ms / 1000),
-      )
-  }
-  const step = (direction: number) => {
-    const timestamps = times.data
-    if (!timestamps) return
-    const position = (video.current?.currentTime || 0) * 1000
-    let nearest = 0
-    timestamps.forEach((t, i) => {
-      if (Math.abs(t - position) < Math.abs(timestamps[nearest] - position))
-        nearest = i
-    })
-    seek(
-      timestamps[
-        Math.max(0, Math.min(timestamps.length - 1, nearest + direction))
-      ],
-    )
-  }
   const go = (id: string) =>
     navigate('/data/' + id + '?' + params.toString(), {
       state: { order, returnTo },
     })
+
+  const togglePlay = () => {
+    if (playing) video.current?.pause()
+    else void video.current?.play().catch((e) => setError(e.message))
+  }
+  const snappedCurrent = Math.round(current / 100) * 100
+  const canSplit =
+    !draft.source_changed &&
+    snappedCurrent > 0 &&
+    snappedCurrent < draft.duration_ms
+
   return (
     <>
-      <h1>Video detail</h1>
-      <div className="pageHead">
-        <button className="textButton" onClick={() => navigate(returnTo)}>
-          <IconArrowLeft size={16} />
-          Back to Data Library
-        </button>
+      <div className={styles.detailHeader}>
+        <div className={styles.breadcrumb}>
+          <button
+            className={`textButton ${styles.backBtn}`}
+            onClick={() => navigate(returnTo)}
+          >
+            <IconArrowLeft size={15} />
+            Data Library
+          </button>
+          <span className={styles.crumbSep}>/</span>
+          <span className={`${styles.fileTitle} mono`} title={item.path}>
+            {item.path}
+          </span>
+        </div>
         <div className="actions">
-          <button disabled={index <= 0} onClick={() => go(order[index - 1])}>
-            <IconArrowLeft size={16} />
-            Previous item
+          <button
+            className={styles.navBtn}
+            disabled={index <= 0}
+            onClick={() => go(order[index - 1])}
+          >
+            <IconArrowLeft size={15} />
+            Prev
           </button>
           <button
+            className={styles.navBtn}
             disabled={index < 0 || index === order.length - 1}
             onClick={() => go(order[index + 1])}
           >
-            Next item
-            <IconArrowRight size={16} />
+            Next
+            <IconArrowRight size={15} />
           </button>
         </div>
       </div>
-      <p className="muted small mono">{item.path}</p>
       <div className={styles.tabs} role="tablist" aria-label="Recording detail">
         {[
           ['video', 'Video & Annotation'],
@@ -206,7 +278,7 @@ export function DetailPage({
           </button>
         ))}
       </div>
-      <div hidden={tab !== 'video'} className="stack">
+      <div hidden={tab !== 'video'} className={styles.videoWorkspace}>
         <section className="card">
           <video
             className={styles.video}
@@ -217,6 +289,7 @@ export function DetailPage({
                 ? '/api/assets/' + assetId + '/media'
                 : undefined
             }
+            onClick={togglePlay}
             onError={() => setMediaError(true)}
             onTimeUpdate={() =>
               setCurrent((video.current?.currentTime || 0) * 1000)
@@ -259,25 +332,37 @@ export function DetailPage({
               )}
             </div>
           )}
-          <div className={styles.controls}>
-            <button onClick={() => step(-1)} disabled={!times.data}>
-              ‹ 1 frame
-            </button>
-            <button
-              className="primary"
-              onClick={() => {
-                if (playing) video.current?.pause()
-                else
-                  void video.current?.play().catch((e) => setError(e.message))
-              }}
-            >
-              <IconPlayerPlay size={15} />
-              {playing ? 'Pause' : 'Play'}
-            </button>
-            <button onClick={() => step(1)} disabled={!times.data}>
-              1 frame ›
-            </button>
+          <div className={styles.controls} data-keep-split>
+            <div className={styles.transportGroup}>
+              <button
+                onClick={() => step(-1)}
+                disabled={!times.data}
+                title="Previous frame (,)"
+              >
+                ‹ 1f
+              </button>
+              <button
+                className={`primary ${styles.playBtn}`}
+                onClick={togglePlay}
+                title="Play / Pause (Space)"
+              >
+                {playing ? (
+                  <IconPlayerPause size={14} />
+                ) : (
+                  <IconPlayerPlay size={14} />
+                )}
+                {playing ? 'Pause' : 'Play'}
+              </button>
+              <button
+                onClick={() => step(1)}
+                disabled={!times.data}
+                title="Next frame (.)"
+              >
+                1f ›
+              </button>
+            </div>
             <input
+              className={styles.scrubber}
               aria-label="Playback position"
               type="range"
               min="0"
@@ -286,8 +371,9 @@ export function DetailPage({
               value={current}
               onChange={(e) => seek(Number(e.target.value))}
             />
-            <span className="mono small">
-              {time(current)} / {time(item.info.duration_ms || 0)}
+            <span className={`${styles.timeReadout} mono`}>
+              <strong>{time(current)}</strong>
+              <span>/ {time(item.info.duration_ms || 0)}</span>
             </span>
             <select
               aria-label="Playback speed"
@@ -304,24 +390,20 @@ export function DetailPage({
               ))}
             </select>
             <button
-              className="primary"
+              className={styles.splitBtn}
               onClick={() =>
                 addSplit.current((video.current?.currentTime || 0) * 1000)
               }
-              disabled={
-                draft.source_changed ||
-                Math.round(current / 100) * 100 <= 0 ||
-                Math.round(current / 100) * 100 >= draft.duration_ms
-              }
+              disabled={!canSplit}
               title={
-                Math.round(current / 100) * 100 <= 0 ||
-                Math.round(current / 100) * 100 >= draft.duration_ms
-                  ? 'Seek inside the recording to add a split point.'
-                  : undefined
+                !canSplit
+                  ? 'Seek inside the recording to add a split point (S).'
+                  : 'Split segment at current playhead (S)'
               }
             >
-              <IconPlus size={15} />
-              Add split point
+              <IconScissors size={14} />
+              Split
+              <kbd className={styles.kbd}>S</kbd>
             </button>
           </div>
         </section>
@@ -329,6 +411,8 @@ export function DetailPage({
           <Annotation
             draft={draft}
             phases={library.phases}
+            currentMs={current}
+            onSeek={seek}
             onDirty={setDirty}
             registerSave={registerSave}
             registerAdd={registerAdd}
