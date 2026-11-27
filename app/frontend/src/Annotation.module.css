@@ -1,0 +1,640 @@
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 4px;
+  border: 1px solid #dcdcdc;
+  background: #f6f6f6;
+  color: #525252;
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+  user-select: none;
+}
+
+.kbdDark {
+  border-color: #404040;
+  background: #2b2b2b;
+  color: #d4d4d4;
+  margin-left: 2px;
+}
+
+/* Annotation card header */
+.annotationHead {
+  min-height: 46px;
+  padding: 10px 14px;
+}
+
+.headLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.historyGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.historyBtn {
+  width: 32px;
+  padding: 0;
+  color: #404040;
+}
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.statusIdle {
+  color: #737373;
+  background: #fafafa;
+}
+
+.statusDirty {
+  color: #9a6700;
+  background: #fff8eb;
+  border-color: #f3d79b;
+}
+
+.statusSaved {
+  color: #157f3c;
+  background: #eefbf3;
+  border-color: #bfe8ce;
+}
+
+.statusBusy {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.progressSummary {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.annotationBody {
+  padding: 12px 14px 14px;
+}
+
+/* Unified Ruler + Clip Track + Playhead */
+.timelineWrap {
+  position: relative;
+  user-select: none;
+}
+
+.ruler {
+  position: relative;
+  height: 22px;
+  margin: 0 5px 4px;
+  cursor: crosshair;
+  border-bottom: 1px solid #e4e4e7;
+}
+
+.ruler:hover {
+  background: #fafafa;
+  border-radius: 4px 4px 0 0;
+}
+
+.ghostSplit {
+  position: absolute;
+  top: -12px;
+  bottom: -2px;
+  width: 0;
+  border-left: 1.5px dashed #71717a;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.ghostLabel {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 5px;
+  border-radius: 4px;
+  border: 1px solid #d4d4d8;
+  background: #fff;
+  color: #27272a;
+  font-family: 'Geist Mono', monospace;
+  font-size: 9.5px;
+  line-height: 1.1;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.08);
+}
+
+.minorTick {
+  position: absolute;
+  bottom: 0;
+  width: 1px;
+  height: 4px;
+  background: #d4d4d8;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.majorTick {
+  position: absolute;
+  top: 2px;
+  bottom: 0;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.majorTick::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  height: 7px;
+  background: #a1a1aa;
+  transform: translateX(-50%);
+}
+
+.tickStart {
+  transform: none;
+}
+
+.tickStart::after {
+  left: 0;
+  transform: none;
+}
+
+.tickEnd {
+  transform: translateX(-100%);
+}
+
+.tickEnd::after {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+.tickLabel {
+  display: block;
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px;
+  line-height: 1;
+  color: #71717a;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Recessed Track Groove + Rounded Segment Clips */
+.trackGroove {
+  position: relative;
+  padding: 4px;
+  border-radius: 8px;
+  background: #f1f1f3;
+  border: 1px solid #e2e2e6;
+}
+
+.trackCanvas {
+  position: relative;
+  width: 100%;
+}
+
+.segments {
+  display: flex;
+  height: 32px;
+  width: 100%;
+}
+
+.segment {
+  position: relative;
+  min-width: 2px;
+  height: 100%;
+  min-height: 0;
+  padding: 0 1.5px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #18181b;
+  overflow: visible;
+}
+
+.segment:first-child {
+  padding-left: 0;
+}
+
+.segment:last-child {
+  padding-right: 0;
+}
+
+.clipFace {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 5px;
+  border: 1px solid rgb(0 0 0 / 0.1);
+  overflow: hidden;
+  transition:
+    box-shadow 0.12s ease,
+    border-color 0.12s ease,
+    filter 0.12s ease,
+    background-color 0.12s ease;
+}
+
+.unlabeledClip {
+  background-color: #fafafa;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    #fafafa 0,
+    #fafafa 5px,
+    #ececef 5px,
+    #ececef 10px
+  );
+}
+
+.multiSegments .segment:not(.activeSegment) .clipFace {
+  opacity: 0.72;
+}
+
+.segment:hover .clipFace {
+  opacity: 1 !important;
+  border-color: rgb(0 0 0 / 0.24);
+}
+
+/* Soft, restrained active clip focus (no harsh black box) */
+.segment.activeSegment {
+  z-index: 2;
+}
+
+.segment.activeSegment .clipFace {
+  opacity: 1;
+  border-color: rgb(37 99 235 / 0.55);
+  box-shadow:
+    0 0 0 2px rgb(37 99 235 / 0.14),
+    0 1px 3px rgb(0 0 0 / 0.06);
+}
+
+.segment.activeSegment .unlabeledClip {
+  background-color: #fff;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    #fff 0,
+    #fff 5px,
+    #eef4ff 5px,
+    #eef4ff 10px
+  );
+}
+
+.segmentCode {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  pointer-events: none;
+  user-select: none;
+  padding: 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Pill Split Handles in Clip Gaps */
+.boundary {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  height: auto;
+  width: 18px;
+  transform: translateX(-50%);
+  padding: 0;
+  min-height: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  touch-action: none;
+  cursor: ew-resize;
+  z-index: 3;
+}
+
+.handleGrip {
+  width: 3px;
+  height: 18px;
+  border-radius: 999px;
+  background: #a1a1aa;
+  transition:
+    width 0.12s ease,
+    height 0.12s ease,
+    background-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.boundary:hover,
+.boundary:focus-visible,
+.boundary[aria-pressed='true'] {
+  z-index: 5;
+}
+
+.boundary:hover .handleGrip,
+.boundary:focus-visible .handleGrip {
+  width: 5px;
+  height: 24px;
+  background: #3f3f46;
+  box-shadow: 0 0 0 2px #fff;
+}
+
+.boundary[aria-pressed='true'] .handleGrip {
+  width: 5px;
+  height: 26px;
+  background: #2563eb;
+  box-shadow:
+    0 0 0 2px #fff,
+    0 1px 4px rgb(37 99 235 / 0.35);
+}
+
+.bubble {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 5px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #18181b;
+  color: #fff;
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 10px;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.18);
+}
+
+.bubbleLeft {
+  left: 0;
+  transform: none;
+}
+
+.bubbleRight {
+  left: auto;
+  right: 0;
+  transform: none;
+}
+
+.boundary[aria-pressed='true'] .bubble {
+  background: #2563eb;
+}
+
+.boundary:hover .bubble,
+.boundary:focus-visible .bubble,
+.boundary[aria-pressed='true'] .bubble {
+  display: block;
+}
+
+/* High-Visibility Playhead */
+.playhead {
+  position: absolute;
+  top: -14px;
+  bottom: -4px;
+  width: 2px;
+  background: #2563eb;
+  transform: translateX(-50%);
+  pointer-events: none;
+  z-index: 4;
+  box-shadow: 0 0 0 0.5px rgb(255 255 255 / 0.7);
+}
+
+.playheadCap {
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  width: 9px;
+  height: 9px;
+  background: #2563eb;
+  border: 1.5px solid #fff;
+  border-radius: 2px 2px 50% 50%;
+  transform: translateX(-50%);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+}
+
+/* Active Segment Inspector + Phase Grid */
+.inspector {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fafafa;
+  display: grid;
+  gap: 9px;
+}
+
+.inspectorHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 29px;
+  flex-wrap: wrap;
+}
+
+.segmentNav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.stepBtn {
+  width: 25px;
+  height: 25px;
+  min-height: 25px;
+  padding: 0;
+  border-radius: 5px;
+  color: #404040;
+}
+
+.segmentBadge {
+  font-size: 12px;
+  font-weight: 600;
+  color: #171717;
+  padding: 0 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.segmentTotal {
+  margin-left: 3px;
+  font-weight: 400;
+  color: #8a8a8a;
+}
+
+.segmentRange {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-left: 4px;
+  font-family: 'Geist Mono', monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #404040;
+}
+
+.segmentRange small {
+  color: #8a8a8a;
+  font-size: 10.5px;
+}
+
+.seekBtn,
+.clearInlineBtn {
+  height: 24px;
+  min-height: 24px;
+  padding: 0 8px;
+  font-size: 11px;
+  color: #525252;
+  border-radius: 5px;
+  margin-left: 2px;
+}
+
+.inspectorRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.splitContext {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 4px 2px 8px;
+  border-radius: 6px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.splitContextLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: #1d4ed8;
+}
+
+.splitContextHint {
+  font-size: 10.5px;
+  color: #3b82f6;
+}
+
+.deleteSplitBtn {
+  height: 23px;
+  min-height: 23px;
+  padding: 0 7px;
+  font-size: 11px;
+  border-radius: 5px;
+  background: #fff;
+}
+
+.shortcutHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #8a8a8a;
+}
+
+.phasePicker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.phaseCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 9px;
+  border-radius: 6px;
+  border: 1px solid #e2e2e5;
+  background: #fff;
+  font-size: 11.5px;
+  color: #262626;
+  text-align: left;
+  transition:
+    border-color 0.12s ease,
+    background-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.phaseCard:hover:not(:disabled) {
+  border-color: #b4b4bb;
+  background: #fdfdfd;
+}
+
+.phaseCardChosen {
+  border-color: #171717 !important;
+  color: #171717;
+  box-shadow: inset 0 0 0 1px #171717;
+}
+
+.phaseBar {
+  width: 4px;
+  height: 18px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.phaseText {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.phaseText b {
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.phaseDesc {
+  color: #525252;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.phaseCardChosen .phaseDesc {
+  color: #171717;
+}
+
+@media (max-width: 920px) {
+  .phasePicker {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .shortcutHint {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .phasePicker {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
